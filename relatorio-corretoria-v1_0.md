@@ -60,7 +60,7 @@ schema e uma API REST versionada e documentada.
 | 5 | Migrations e Seeds (Flyway) | 3, 4 | ✅ |
 | 6 | Repositories | 5 | ✅ |
 | 7 | Value Objects e Validação | 4 | ✅ |
-| 8 | Tratamento de Erros (ProblemDetail) | 7 | ⏳ |
+| 8 | Tratamento de Erros (ProblemDetail) | 7 | ✅ |
 | 9 | Login, Security e JWT | 6, 8 | ⏳ |
 | 10 | Services (regras de negócio) | 6, 7, 8, 9 | ⏳ |
 | 11 | Controllers Versionados (Endpoints) | 8, 10 | ⏳ |
@@ -69,7 +69,7 @@ schema e uma API REST versionada e documentada.
 | 14 | Entregáveis (Postman, README) | 11, 12, 13 | ⏳ |
 | 15 | Revisão, Evidências e Manutenção | 1–14 | ⏳ |
 
-**Progresso:** 7 de 15 etapas concluídas.
+**Progresso:** 8 de 15 etapas concluídas.
 **Legenda:** ✅ concluída · 🔄 em andamento · ⏳ pendente.
 
 ### Lógica do sequenciamento
@@ -1041,6 +1041,59 @@ Exemplo de operação não permitida (`403`) — autocadastro solicitando `ROLE_
 
 O campo `instance` traz o caminho da requisição que originou o erro, permitindo correlacionar
 a resposta com o log sem expor dado sensível.
+
+### Entrega da etapa ✅
+
+Criados no pacote `exception`: as quatro exceções de domínio, o enum `ProblemType` (registro
+dos dez tipos, com slug e título) e o `GlobalExceptionHandler`. No pacote `config`, o
+`ClockConfig`. `mvn clean test` → **BUILD SUCCESS, 79 testes, 0 falhas** (12 novos).
+
+#### O serviço não conhece HTTP
+
+As exceções de domínio **não** carregam status nem `type` — quem faz esse mapeamento é o
+handler. É o que permite ao `UserService` da Etapa 10 lançar `DuplicateResourceException` sem
+saber que existe um `409`, e o que torna o serviço testável sem contexto web.
+
+As mensagens saem de fábricas estáticas (`DuplicateResourceException.email(...)`,
+`InvalidPasswordException.currentPasswordDoesNotMatch()`) para que a redação seja única e os
+testes possam afirmar sobre ela.
+
+#### Decisões de segurança no contrato de erro
+
+- **O `401` não diz o que falhou.** `handleAuthentication` responde sempre "Login ou senha
+  inválidos", tanto para login inexistente quanto para senha errada. Diferenciar permitiria
+  enumerar logins válidos. A causa real vai para o log, em nível `debug`.
+- **O `500` não devolve a mensagem da exceção.** Mensagem de exceção carrega nome de tabela,
+  trecho de SQL, caminho de arquivo. O cliente recebe texto genérico; a causa vai integral
+  para o log, com método e caminho da requisição para correlacionar.
+- **Nada é engolido.** O handler de `Exception` registra em `error` antes de responder.
+
+#### `Clock` injetável
+
+O `timestamp` da resposta vem de um `Clock` injetado, não de `Instant.now()`. Além de
+tornar o handler testável com `Clock.fixed(...)`, é o mesmo bean que a expiração do
+`PasswordResetToken` vai usar — a regra prevista na Etapa 4 já tem onde se apoiar. O relógio
+é UTC, para o instante gravado não mudar de significado conforme o fuso do servidor.
+
+#### Testes
+
+12 testes cobrindo os pares status/`type` da matriz da Etapa 15. O mais relevante não checa
+um caso isolado, e sim a razão de existir do RFC 7807:
+
+```java
+assertThat(operation.getStatus()).isEqualTo(ownership.getStatus());
+assertThat(operation.getType()).isNotEqualTo(ownership.getType());
+```
+
+Os dois `403` — `forbidden-operation` e `access-denied` — são indistinguíveis pelo status. É
+o `type` que permite ao cliente tratá-los de forma diferente.
+
+#### O que ainda não está coberto
+
+Os dois `401` de token (ausente, expirado ou malformado) são levantados **dentro da cadeia de
+filtros**, antes de qualquer controller, e por isso não chegam a este advice. Ficam para o
+`JwtAuthenticationEntryPoint` da Etapa 9, que reproduz este mesmo formato — sem ele, o Spring
+devolveria um `401` fora do padrão `ProblemDetail`.
 
 ---
 
