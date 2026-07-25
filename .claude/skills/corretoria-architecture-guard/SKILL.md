@@ -74,6 +74,15 @@ controller ──► service ──► repository ──► entity
 - `mapper` → `entity`, `vo`, `enums`
 - `entity` → `entity`, `enums`, `jakarta.persistence`, `java.*`
 - `util` → apenas `java.*`
+- `security` → `repository`, `entity`, `enums`, `exception`, `config`, `util`
+
+**Por que `security` lê o repository direto.** `CustomUserDetailsService` e
+`UserSecurity.isSelf` precisam resolver o usuário autenticado a cada requisição. Passar pelo
+`service` criaria ciclo (`UserService` depende do `PasswordEncoder`, declarado no
+`SecurityConfig`) sem ganho: não há regra de negócio nessa leitura, é resolução de
+identidade. A segurança é transversal e fica **abaixo** da apresentação — por isso
+`security` → `controller` continua proibido, e há regra de ArchUnit
+(`securityNaoDependeDeController`) fixando isso.
 
 **Proibido (veto imediato)**
 

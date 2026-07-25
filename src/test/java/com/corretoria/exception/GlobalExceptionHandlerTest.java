@@ -108,6 +108,17 @@ class GlobalExceptionHandlerTest {
         }
 
         @Test
+        @DisplayName("handleNoResourceFound - rota inexistente - 404, e não 500")
+        void shouldMapUnknownRouteTo404() {
+            // Sem este handler, NoResourceFoundException cai no catch genérico e um erro de
+            // digitação na URL do cliente vira "erro do servidor".
+            ProblemDetail problem = handler.handleNoResourceFound(requestTo("/api/v1/naoexiste"));
+
+            assertThat(problem.getStatus()).isEqualTo(HttpStatus.NOT_FOUND.value());
+            assertThat(problem.getType()).hasToString(BASE_URI + "/problems/resource-not-found");
+        }
+
+        @Test
         @DisplayName("handleUnexpected - exceção não prevista - 500 com internal-error")
         void shouldMapUnexpected() {
             ProblemDetail problem =

@@ -280,6 +280,14 @@ public class ArchitectureTest {
                     + "SecurityContextHolder no controller espalha a regra de posse");
 
     @ArchTest
+    static final ArchRule securityNaoDependeDeController = noClasses()
+            .that().resideInAPackage(SECURITY)
+            .should().dependOnClassesThat().resideInAPackage(CONTROLLER)
+            .as("A segurança é transversal e fica abaixo da apresentação: pode ler o "
+                    + "repository para resolver o usuário autenticado, mas nunca depende de "
+                    + "controller");
+
+    @ArchTest
     static final ArchRule semAnotacaoDeAutorizacaoForaDoController = noClasses()
             .that().resideInAnyPackage(ENTITY, REPOSITORY, VO)
             .should().dependOnClassesThat().resideInAnyPackage("org.springframework.security..")

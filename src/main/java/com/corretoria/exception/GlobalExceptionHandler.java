@@ -17,6 +17,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * Padroniza <strong>todas</strong> as respostas de erro no formato ProblemDetail (RFC 7807).
@@ -119,6 +120,20 @@ public class GlobalExceptionHandler {
 
         return build(HttpStatus.CONFLICT, ProblemType.DUPLICATE_RESOURCE,
                 exception.getMessage(), request);
+    }
+
+    /**
+     * Rota inexistente.
+     *
+     * <p>Precisa vir <strong>antes</strong> do handler genérico: sem ela, o Spring lança
+     * {@code NoResourceFoundException} para um caminho desconhecido, o {@code catch}
+     * genérico transforma em {@code 500}, e um erro de digitação na URL do cliente vira
+     * "erro do servidor" — além de poluir o log de erro com ruído.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ProblemDetail handleNoResourceFound(HttpServletRequest request) {
+        return build(HttpStatus.NOT_FOUND, ProblemType.RESOURCE_NOT_FOUND,
+                "Recurso não encontrado: " + request.getRequestURI(), request);
     }
 
     /**

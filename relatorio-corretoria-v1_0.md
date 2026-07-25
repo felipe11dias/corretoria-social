@@ -61,7 +61,7 @@ schema e uma API REST versionada e documentada.
 | 6 | Repositories | 5 | ✅ |
 | 7 | Value Objects e Validação | 4 | ✅ |
 | 8 | Tratamento de Erros (ProblemDetail) | 7 | ✅ |
-| 9 | Login, Security e JWT | 6, 8 | ⏳ |
+| 9 | Login, Security e JWT | 6, 8 | ✅ |
 | 10 | Services (regras de negócio) | 6, 7, 8, 9 | ⏳ |
 | 11 | Controllers Versionados (Endpoints) | 8, 10 | ⏳ |
 | 12 | Testes (JUnit + Mockito + ArchUnit) | 10, 11 | ⏳ |
@@ -69,7 +69,7 @@ schema e uma API REST versionada e documentada.
 | 14 | Entregáveis (Postman, README) | 11, 12, 13 | ⏳ |
 | 15 | Revisão, Evidências e Manutenção | 1–14 | ⏳ |
 
-**Progresso:** 8 de 15 etapas concluídas.
+**Progresso:** 9 de 15 etapas concluídas.
 **Legenda:** ✅ concluída · 🔄 em andamento · ⏳ pendente.
 
 ### Lógica do sequenciamento
@@ -247,13 +247,13 @@ tabela de regras da skill e o teste real divirjam.
 | Tecnologia | Versão | Uso |
 |------------|--------|-----|
 | Java | 21 (LTS) | Linguagem |
-| Spring Boot | 3.5.x | Framework base |
+| Spring Boot | 3.5.16 | Framework base |
 | Spring Web | (gerenciado) | API REST |
 | Spring Data JPA | (gerenciado) | Persistência |
 | Spring Validation | (gerenciado) | Validação de VOs |
 | Spring Security | (gerenciado) | Autenticação JWT |
 | PostgreSQL | 16 | Banco relacional |
-| springdoc-openapi | 2.8.x | Documentação Swagger |
+| springdoc-openapi | 2.8.17 | Documentação Swagger (2.8.6 é incompatível com o Boot 3.5 — ver Etapa 9) |
 | jjwt | 0.12.x | Geração/validação de JWT |
 | Flyway | (gerenciado) | Migração e versionamento de schema |
 | Spring HATEOAS | (gerenciado) | Links de navegação nas respostas REST |
@@ -1178,6 +1178,110 @@ Resposta `200 OK`:
 
 Credenciais inválidas retornam `401 Unauthorized` (padronizado como `ProblemDetail` na
 Etapa 8). Para acessar endpoints protegidos, envie `Authorization: Bearer <token>`.
+
+### Entrega da etapa ✅
+
+Nove classes: `JwtProperties`, `JwtService`, `CustomUserDetailsService`,
+`JwtAuthenticationFilter`, `JwtAuthenticationEntryPoint` e `UserSecurity` (em `security`),
+`SecurityConfig` (em `config`), `AuthenticationService` (em `service`) e `AuthController`.
+`mvn clean test` → **BUILD SUCCESS, 99 testes, 0 falhas**.
+
+Esta é a primeira etapa com **endpoint real funcionando**, exercitado contra a aplicação no
+ar e o PostgreSQL do compose:
+
+| # | Cenário | Esperado | Obtido |
+|---|---------|----------|--------|
+| A1 | login `corretor.demo` | 200 | ✅ 200 + token |
+| A2 | login `cliente.demo` | 200 | ✅ 200 |
+| A3 | login `admin.demo` | 200 | ✅ 200 |
+| A4 | senha incorreta | 401 `authentication-failed` | ✅ |
+| A5 | login inexistente | 401 `authentication-failed` | ✅ |
+| A6 | campos obrigatórios ausentes | 400 `validation-error` | ✅ com mapa `errors` |
+| C5 | sem cabeçalho `Authorization` | 401 `missing-token` | ✅ |
+| C6 | token malformado | 401 `missing-token` | ✅ |
+| — | token assinado por outra chave | 401 `missing-token` | ✅ |
+| — | token válido em rota inexistente | 404 | ✅ |
+| — | `GET /actuator/health` | 200 `UP` | ✅ |
+| — | Swagger UI e `/v3/api-docs` | 200 | ✅ |
+
+> **A4 e A5 devolvem corpos idênticos.** É o comportamento pretendido: se a resposta
+> distinguisse "login não existe" de "senha errada", bastaria variar o login para enumerar
+> contas válidas.
+
+#### Três defeitos encontrados e corrigidos
+
+A verificação de ponta a ponta pagou-se: os três só apareceram com a aplicação rodando de
+verdade, e nenhum deles seria visível em teste unitário.
+
+**1. springdoc 2.8.6 é incompatível com Spring Boot 3.5 — a aplicação não subia.**
+
+```
+'boolean org.springframework.boot.autoconfigure.hateoas.HateoasProperties
+    .getUseHalAsDefaultJsonMediaType()'  did not exist
+```
+
+O método foi removido no Boot 3.5 e o springdoc 2.8.6 o chama diretamente. Não aparecera
+antes porque as verificações das Etapas 5 e 6 rodaram com
+`--spring.main.web-application-type=none`, que não carrega o springdoc. Corrigido subindo o
+springdoc para **2.8.17**, a última da linha 2.8.x (a 3.0.x já mira o Spring Boot 4), e o
+Spring Boot de 3.5.3 para **3.5.16**.
+
+> Nota de método: o índice do `search.maven.org` está defasado — reportava 2.8.6 e 3.5.3 como
+> as mais recentes. As versões acima foram descobertas sondando o repositório real com
+> `dependency:get`, que é a fonte autoritativa.
+
+**2. O token saía assinado em HS384, não em HS256.**
+
+`Keys.hmacShaKeyFor` deriva o algoritmo do **tamanho da chave**: um segredo de 32 caracteres
+produz HS256; um de 48, HS384. O algoritmo de assinatura deixava de ser decisão de projeto e
+virava consequência acidental da configuração de cada ambiente. Corrigido fixando
+`Jwts.SIG.HS256` com uma chave `HmacSHA256` explícita, e travado por teste que decodifica o
+cabeçalho do token e afirma `"alg":"HS256"`.
+
+**3. Rota inexistente respondia 500 em vez de 404.**
+
+O `@ExceptionHandler(Exception.class)` da Etapa 8 capturava também a
+`NoResourceFoundException` do Spring: um erro de digitação na URL do cliente virava "erro do
+servidor", e ainda poluía o log de erro. Corrigido com um handler específico, colocado antes
+do genérico, e coberto por teste.
+
+#### Ciclo de pacotes barrado pelo ArchUnit
+
+O `JwtProperties` nasceu em `config` e a suíte reprovou o build:
+
+```
+Cycle detected: Slice config -> Slice security -> Slice config
+```
+
+`SecurityConfig` precisa do filtro e do entry point (`config → security`), enquanto o
+`JwtService` precisava das propriedades (`security → config`). A regra do projeto é que
+**ninguém depende de `config`** — então o `JwtProperties` foi movido para `security`, onde de
+fato pertence, já que quem o consome é o `JwtService`. Foi acrescentada a regra
+`securityNaoDependeDeController`, fixando que a segurança é transversal e fica *abaixo* da
+apresentação.
+
+#### Decisões
+
+- **O filtro nunca rejeita a requisição.** Sem token ou com token inválido, ele não autentica
+  e segue a cadeia; quem decide se o recurso exigia autenticação é a filter chain. Se o
+  filtro respondesse por conta própria, devolveria `401` até nos endpoints públicos.
+- **O token carrega apenas o login.** JWT é assinado, não cifrado — quem o intercepta lê o
+  conteúdo. Os papéis são recarregados do banco a cada requisição, o que também faz a
+  revogação de um papel valer na hora, em vez de esperar o token expirar.
+- **A entidade `User` não implementa `UserDetails`.** Fazê-la implementar arrastaria o domínio
+  para dentro do framework de segurança e violaria a regra que proíbe `entity` de depender de
+  `org.springframework.security`.
+- **CSRF desabilitado.** Sem sessão e sem formulário de login não há cookie que um site de
+  terceiros possa forçar o navegador a enviar, que é a premissa do ataque.
+- **`security` lê o repository direto.** Passar pelo `service` criaria ciclo (o `UserService`
+  depende do `PasswordEncoder`, declarado no `SecurityConfig`) sem ganho: resolver identidade
+  não é regra de negócio. Decisão registrada na skill de arquitetura.
+
+#### Pendência conhecida
+
+O build emite aviso do Mockito sobre *self-attaching* do inline-mock-maker, que deixará de
+funcionar em JDKs futuros. Não afeta os testes hoje; a correção (registrar o Mockito como
+agente no Surefire) fica para a Etapa 12, que consolida a suíte.
 
 ---
 
