@@ -327,11 +327,19 @@ faria o `ArchitectureTest` falhar por não haver classes, não por violação:
 | `archRule.failOnEmptyShould=false` | `src/test/resources/archunit.properties` |
 | `.withOptionalLayers(true)` | regra `layeredArchitecture()` do `ArchitectureTest` |
 
-#### Ferramentas do ambiente
+#### Maven Wrapper
 
-O build roda com o JDK 21 (`~/.jdks/ms-21.0.11`) e o Maven 3.9.11 embutido no IntelliJ IDEA
-— não há Maven no `PATH` do sistema. Adicionar o Maven Wrapper (`mvnw`) ao repositório é
-melhoria pendente para tornar o projeto auto-suficiente.
+O repositório inclui o **Maven Wrapper** (`mvnw`, `mvnw.cmd`,
+`.mvn/wrapper/maven-wrapper.properties`, Maven 3.9.11, `distributionType=only-script`). Quem
+clonar o projeto não precisa ter Maven instalado — o wrapper baixa a distribuição correta na
+primeira execução, e todos usam a mesma versão de Maven:
+
+```bash
+./mvnw clean test        # Linux/macOS
+mvnw.cmd clean test      # Windows
+```
+
+Só é exigido um **JDK 21** com `JAVA_HOME` apontado para ele.
 
 ---
 
