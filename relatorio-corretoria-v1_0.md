@@ -63,13 +63,13 @@ schema e uma API REST versionada e documentada.
 | 8 | Tratamento de Erros (ProblemDetail) | 7 | ✅ |
 | 9 | Login, Security e JWT | 6, 8 | ✅ |
 | 10 | Services (regras de negócio) | 6, 7, 8, 9 | ✅ |
-| 11 | Controllers Versionados (Endpoints) | 8, 10 | ⏳ |
+| 11 | Controllers Versionados (Endpoints) | 8, 10 | ✅ |
 | 12 | Testes (JUnit + Mockito + ArchUnit) | 10, 11 | ⏳ |
 | 13 | Documentação Swagger | 11 | ⏳ |
 | 14 | Entregáveis (Postman, README) | 11, 12, 13 | ⏳ |
 | 15 | Revisão, Evidências e Manutenção | 1–14 | ⏳ |
 
-**Progresso:** 10 de 15 etapas concluídas.
+**Progresso:** 11 de 15 etapas concluídas.
 **Legenda:** ✅ concluída · 🔄 em andamento · ⏳ pendente.
 
 ### Lógica do sequenciamento
@@ -995,7 +995,7 @@ exceção do Corretoria registra um `type` próprio, servido em
 | Exceção / situação | HTTP | `type` | Título |
 |--------------------|------|--------|--------|
 | `MethodArgumentNotValidException` (Bean Validation) | 400 | `/problems/validation-error` | Requisição inválida (com mapa `errors` por campo) |
-| `IllegalArgumentException` (VOs `Email`/`ZipCode`) | 400 | `/problems/invalid-field-format` | Requisição inválida |
+| `IllegalArgumentException` (invariante dos VOs `Email`/`ZipCode`, quando o Bean Validation deixou passar) | 400 | `/problems/invalid-field-format` | Requisição inválida |
 | `InvalidPasswordException` | 400 | `/problems/invalid-password` | Senha inválida |
 | `AuthenticationException` (login/senha) | 401 | `/problems/authentication-failed` | Falha na autenticação |
 | acesso sem token (entry point) | 401 | `/problems/missing-token` | Não autenticado |
@@ -1493,6 +1493,91 @@ Resposta `201 Created` (com links HATEOAS):
 Respostas de erro (e-mail duplicado, recurso inexistente, senha incorreta) seguem o padrão
 `ProblemDetail` da Etapa 8.
 
+### Entrega da etapa ✅
+
+`UserController` e `UserModelAssembler` criados. `mvn clean test` → **BUILD SUCCESS, 123
+testes, 0 falhas**. Com os endpoints no ar, a **matriz de evidências da Etapa 15 foi
+percorrida inteira** contra a aplicação real e o PostgreSQL do compose.
+
+#### Resultado da matriz
+
+| Grupo | Cenários | Resultado |
+|-------|----------|-----------|
+| Cadastro `U1`–`U9` | 9 | ✅ todos conforme |
+| Consulta `C1`–`C11` | 11 | ✅ todos conforme |
+| Atualização `M1`–`M5` | 5 | ✅ todos conforme |
+| Senha `P1`–`P5` | 5 | ✅ todos conforme |
+| Exclusão `D1`–`D4` | 4 | ✅ todos conforme |
+
+Destaques do que ficou provado, e não apenas afirmado:
+
+- **`U7` — e-mail duplicado divergindo só na caixa.** `MARIA.Souza@Email.COM` colidiu com
+  `maria.souza@email.com` e recebeu `409`. É a regra de negócio da normalização funcionando
+  ponta a ponta, não formatação.
+- **`P5` e `D4` — evidências de efeito.** Um `204` prova que a requisição foi aceita, não que
+  o dado mudou. Após a troca de senha, o login com a senha **nova** deu `200` e com a antiga,
+  `401`. Após a exclusão, a consulta ao id deu `404` — e a consulta ao banco confirmou
+  endereços e vínculos de papel zerados pelo cascade.
+- **`C2`, `M4`, `P4`, `D2` — a barreira contra IDOR.** Um corretor autenticado tentando ler,
+  atualizar, trocar senha ou excluir o cadastro de outro recebeu `403 access-denied` nos
+  quatro casos.
+
+#### Divergência encontrada entre documento e comportamento
+
+A matriz previa `/problems/invalid-field-format` para `U4` (e-mail inválido) e `U5` (CEP
+inválido). O observado foi `/problems/validation-error`.
+
+Investigado, **o comportamento está certo e o documento é que estava impreciso**. Há duas
+camadas de validação, e cada uma tem seu `type`:
+
+| Camada | Quando dispara | `type` |
+|--------|----------------|--------|
+| Bean Validation no VO de entrada | formato claramente inválido | `validation-error`, com mapa `errors` por campo |
+| Invariante do VO de valor | passa no Bean Validation mas viola a regra de domínio | `invalid-field-format` |
+
+O segundo caso **é alcançável e foi comprovado**: o `@Email` do Jakarta aceita `joao@email`
+(sem domínio de topo), mas o VO `Email` exige o ponto e recusa — resposta observada:
+
+```json
+{"type":"https://api.corretoria.app/problems/invalid-field-format",
+ "detail":"E-mail inválido: joao@email","status":400}
+```
+
+A matriz da Etapa 15 foi corrigida para refletir os dois casos. Manter o texto anterior seria
+descrever um comportamento que o sistema não tem.
+
+> Registro de método: dois cenários (`M4` e `M5`) falharam na primeira execução com `400` em
+> vez de `403`/`404`. A causa era o **payload do teste** — o login usado tinha 3 caracteres e
+> o mínimo é 4 —, não o código. Refeitos com dado válido, ambos responderam o esperado. Vale
+> como lembrete de que um resultado inesperado exige diagnóstico antes de virar defeito.
+
+#### Auditoria comprovada
+
+A Etapa 4 prometeu registrar **quem** escreveu. Verificado no banco após o exercício:
+
+```
+ id |    login    | created_by | last_updated_by | foi_alterado
+----+-------------+------------+-----------------+--------------
+  5 | carlos.lima | system     | carlos.lima     | t
+```
+
+`created_by = system` porque o autocadastro é público e anônimo; `last_updated_by =
+carlos.lima` porque a atualização veio autenticada. É a prova de que o
+`SpringSecurityAuditorAware` lê o contexto de segurança corretamente nos dois casos.
+
+#### HATEOAS
+
+Cada usuário sai com `self` e `users`; a listagem usa `PagedModel`, com `first`/`self`/`next`/
+`last` no envelope e o bloco `page`. Os links são montados a partir dos próprios métodos do
+controller (`methodOn`), não de strings — uma mudança de rota se propaga sozinha para as
+respostas.
+
+#### Estado do banco após esta etapa
+
+O exercício deixou dados de teste (`carlos.lima`, id 5) além dos seeds. Não é problema: o
+gate 15.1 exige justamente `docker compose down -v && docker compose up --build`, que
+recria a base do zero antes da coleta de evidências.
+
 ---
 
 ## Etapa 12 — Testes (JUnit + Mockito + ArchUnit)
@@ -1635,8 +1720,9 @@ não por endpoint. Um endpoint com cinco retornos possíveis gera cinco evidênc
 | U1 | `POST /api/v1/users` | corretor válido (`ROLE_REALTOR`) | 201 | — |
 | U2 | `POST /api/v1/users` | cliente válido (`ROLE_CUSTOMER`) | 201 | — |
 | U3 | `POST /api/v1/users` | campos obrigatórios ausentes | 400 | `/problems/validation-error` |
-| U4 | `POST /api/v1/users` | e-mail com formato inválido | 400 | `/problems/invalid-field-format` |
-| U5 | `POST /api/v1/users` | CEP com formato inválido | 400 | `/problems/invalid-field-format` |
+| U4 | `POST /api/v1/users` | e-mail com formato inválido (ex.: `nao-e-email`) | 400 | `/problems/validation-error` |
+| U4b | `POST /api/v1/users` | e-mail que passa no Bean Validation e falha na invariante do VO (ex.: `joao@email`) | 400 | `/problems/invalid-field-format` |
+| U5 | `POST /api/v1/users` | CEP com formato inválido | 400 | `/problems/validation-error` |
 | U6 | `POST /api/v1/users` | e-mail já cadastrado | 409 | `/problems/duplicate-resource` |
 | U7 | `POST /api/v1/users` | e-mail duplicado divergindo só na caixa (`A@x.com` × `a@x.com`) | 409 | `/problems/duplicate-resource` |
 | U8 | `POST /api/v1/users` | login já cadastrado | 409 | `/problems/duplicate-resource` |
