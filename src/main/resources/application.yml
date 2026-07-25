@@ -1,0 +1,56 @@
+spring:
+  application:
+    name: corretoria
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:corretoria-app}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    # O schema é artefato versionado do Flyway; o Hibernate apenas confere que as
+    # entidades batem com o que as migrations criaram.
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+
+server:
+  port: 8080
+  error:
+    include-message: never
+    include-stacktrace: never
+
+corretoria:
+  jwt:
+    secret: ${JWT_SECRET:troque-este-segredo-de-exemplo-por-um-de-no-minimo-256-bits}
+    expiration: ${JWT_EXPIRATION:3600000}
+  problem:
+    base-uri: ${PROBLEM_BASE_URI:https://api.corretoria.app}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: never
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+logging:
+  level:
+    org.springframework.security: INFO
