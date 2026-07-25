@@ -58,7 +58,7 @@ schema e uma API REST versionada e documentada.
 | 3 | Execução com Docker Compose | 2 | ✅ |
 | 4 | Modelagem das Entidades e Banco de Dados | 2 | ✅ |
 | 5 | Migrations e Seeds (Flyway) | 3, 4 | ✅ |
-| 6 | Repositories | 5 | ⏳ |
+| 6 | Repositories | 5 | ✅ |
 | 7 | Value Objects e Validação | 4 | ⏳ |
 | 8 | Tratamento de Erros (ProblemDetail) | 7 | ⏳ |
 | 9 | Login, Security e JWT | 6, 8 | ⏳ |
@@ -69,7 +69,7 @@ schema e uma API REST versionada e documentada.
 | 14 | Entregáveis (Postman, README) | 11, 12, 13 | ⏳ |
 | 15 | Revisão, Evidências e Manutenção | 1–14 | ⏳ |
 
-**Progresso:** 5 de 15 etapas concluídas.
+**Progresso:** 6 de 15 etapas concluídas.
 **Legenda:** ✅ concluída · 🔄 em andamento · ⏳ pendente.
 
 ### Lógica do sequenciamento
@@ -795,14 +795,54 @@ manual):
 
 | Repository | Métodos | Atende ao requisito |
 |------------|---------|---------------------|
-| `UserRepository` | `existsByEmail`, `existsByLogin` | Unicidade de e-mail e login |
+| `UserRepository` | `existsByEmail`, `existsByLogin` | Unicidade de e-mail e login no cadastro |
+| | `existsByEmailAndIdNot`, `existsByLoginAndIdNot` | Unicidade na atualização, ignorando o próprio registro |
 | | `findByLogin` | Validação de login / autenticação |
-| | `findByNameContainingIgnoreCase` | Busca de usuários pelo nome (gestão do admin) |
+| | `findByNameContainingIgnoreCase` | Busca paginada de usuários pelo nome (gestão do admin) |
 | `RoleRepository` | `findByName` | Resolução das entidades de papel |
 | `PasswordResetTokenRepository` | `findByTokenHash` | Validação do token de redefinição |
 
 Endereços não possuem repository próprio: são gerenciados pelo agregado `User` (cascade e
 `orphanRemoval`).
+
+### Entrega da etapa ✅
+
+Três interfaces criadas em `com.corretoria.repository`, todas estendendo `JpaRepository`, sem
+uma linha de SQL manual.
+
+#### Métodos além do planejado
+
+O plano listava `existsByEmail` e `existsByLogin`. Acrescentei **`existsByEmailAndIdNot`** e
+**`existsByLoginAndIdNot`**, exigidos pela regra de atualização da Etapa 10: revalidar
+unicidade *ignorando o próprio registro*. Sem eles, um usuário não conseguiria salvar o
+cadastro mantendo o e-mail que já é dele — a checagem acusaria conflito consigo mesmo.
+
+A busca por nome recebeu assinatura paginada — `Page<User> findByNameContainingIgnoreCase
+(String name, Pageable pageable)` — para casar com a listagem paginada da Etapa 11.
+
+#### Correção de N+1 na listagem do administrador
+
+A listagem paginada expôs um problema real do mapeamento da Etapa 4: com `roles` em
+`FetchType.EAGER`, uma página de 20 usuários dispararia **21 consultas** — uma da página e uma
+de papéis por usuário. As coleções `roles` e `addresses` de `User` passaram a declarar
+`@BatchSize(size = 50)`: o Hibernate agrupa os ids e resolve as coleções em poucas consultas.
+
+`@BatchSize` é a saída **compatível com paginação**. `join fetch` sobre coleção obrigaria o
+Hibernate a aplicar `firstResult`/`maxResults` em memória — ele carregaria a tabela inteira e
+paginaria depois, que é justamente o oposto do pretendido.
+
+#### Verificação executada
+
+| Verificação | Resultado |
+|-------------|-----------|
+| `mvn clean test` | BUILD SUCCESS, 30 testes, 0 falhas |
+| Regra `repositoryEhInterface` | conforme — os três são `interface` e estendem `JpaRepository` |
+| Derivação dos query methods | aplicação subiu sem `PropertyReferenceException` |
+
+> O boot é a verificação que importa aqui: o Spring Data resolve os *query methods* derivados
+> na inicialização do contexto e falha imediatamente se um nome de método não casar com uma
+> propriedade da entidade. Um `findByEmailAdress` (com erro de digitação) não compila errado —
+> ele quebra o boot. Subir a aplicação prova que os seis métodos foram derivados.
 
 ---
 

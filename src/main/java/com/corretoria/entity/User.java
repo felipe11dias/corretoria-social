@@ -21,6 +21,7 @@ import java.util.Objects;
 import java.util.Set;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.BatchSize;
 
 /**
  * Identidade e credenciais de um usuário da plataforma — corretor, cliente ou administrador.
@@ -57,6 +58,10 @@ public class User extends Auditable {
     @Column(name = "password", nullable = false)
     private String password;
 
+    // @BatchSize evita o N+1 da listagem paginada do administrador: em vez de uma consulta
+    // de papéis por usuário, o Hibernate agrupa os ids em lotes. É a saída compatível com
+    // paginação — "join fetch" sobre coleção obrigaria o Hibernate a paginar em memória.
+    @BatchSize(size = 50)
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "user_roles",
@@ -68,6 +73,7 @@ public class User extends Auditable {
                     foreignKey = @ForeignKey(name = "fk_user_roles_roles")))
     private Set<Role> roles = new HashSet<>();
 
+    @BatchSize(size = 50)
     @OneToMany(
             mappedBy = "user",
             cascade = CascadeType.ALL,
