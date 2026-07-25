@@ -57,7 +57,7 @@ schema e uma API REST versionada e documentada.
 | 2 | Setup do Projeto | 1 | ✅ |
 | 3 | Execução com Docker Compose | 2 | ✅ |
 | 4 | Modelagem das Entidades e Banco de Dados | 2 | ✅ |
-| 5 | Migrations e Seeds (Flyway) | 3, 4 | ⏳ |
+| 5 | Migrations e Seeds (Flyway) | 3, 4 | ✅ |
 | 6 | Repositories | 5 | ⏳ |
 | 7 | Value Objects e Validação | 4 | ⏳ |
 | 8 | Tratamento de Erros (ProblemDetail) | 7 | ⏳ |
@@ -69,7 +69,7 @@ schema e uma API REST versionada e documentada.
 | 14 | Entregáveis (Postman, README) | 11, 12, 13 | ⏳ |
 | 15 | Revisão, Evidências e Manutenção | 1–14 | ⏳ |
 
-**Progresso:** 4 de 15 etapas concluídas.
+**Progresso:** 5 de 15 etapas concluídas.
 **Legenda:** ✅ concluída · 🔄 em andamento · ⏳ pendente.
 
 ### Lógica do sequenciamento
@@ -722,6 +722,69 @@ Hibernate roda em `ddl-auto: validate`.
   foi executado.
 - **Histórico:** a tabela `flyway_schema_history` registra o que já foi aplicado, quando e
   com qual checksum.
+
+### Entrega da etapa ✅
+
+As cinco migrations foram escritas e **aplicadas a partir de base limpa** — o banco havia
+sido criado do zero na Etapa 3, então o `flyway_schema_history` nasceu nesta execução:
+
+```
+installed_rank | version |         description          | success
+---------------+---------+------------------------------+---------
+             1 | 1       | create initial schema        | t
+             2 | 2       | seed demo users              | t
+             3 | 3       | seed admin user              | t
+             4 | 4       | create password reset tokens | t
+             5 | 5       | add audit columns            | t
+```
+
+E, logo em seguida, `Started CorretoriaApplication` — ou seja, o **Hibernate em
+`ddl-auto: validate` confirmou que as entidades da Etapa 4 batem com o schema**. Esta é a
+verificação que faltava fechar na etapa anterior.
+
+#### Como as duas armadilhas da Etapa 4 foram resolvidas
+
+1. **`GENERATED ALWAYS AS IDENTITY` recusa `id` explícito.** Nenhum `INSERT` dos seeds informa
+   `id`. Os vínculos são resolvidos por consulta — `INSERT INTO user_roles ... SELECT u.id,
+   r.id FROM users u JOIN roles r ON r.name = 'ROLE_REALTOR' WHERE u.login = 'corretor.demo'`
+   — o que também torna o seed legível: ele diz *qual papel* está sendo concedido, não um
+   número mágico.
+2. **Coluna `NOT NULL` em tabela já populada.** Cada `ALTER` da V5 segue três passos:
+   `ADD COLUMN ... NOT NULL DEFAULT CURRENT_TIMESTAMP` (preenche as linhas existentes) →
+   `UPDATE ... SET created_by = 'system'` (marca a origem das linhas de seed) →
+   `ALTER COLUMN ... DROP DEFAULT`. O terceiro passo é o que importa a longo prazo: **com
+   `DEFAULT` no banco, uma falha do Spring Data Auditing passaria despercebida**, porque o
+   PostgreSQL preencheria a data no lugar dele. Verificado: `column_default` está vazio.
+
+#### Desvio deliberado do plano
+
+O plano da V5 dizia "colunas de auditoria em **todas** as tabelas". `user_roles` ficou de
+fora: é tabela associativa pura, não mapeada como entidade, e nenhuma coluna dela seria
+preenchida pelo `AuditingEntityListener` — seriam quatro colunas permanentemente nulas. O
+diagrama ER da Etapa 4 já a mostrava apenas com `user_id` e `role_id`.
+
+#### Verificações executadas
+
+| Verificação | Resultado |
+|-------------|-----------|
+| Migrations em base limpa | V1–V5, todas `success` |
+| Hibernate `validate` | passou — aplicação subiu sem erro de schema |
+| Seeds de usuário | 3 usuários com os papéis corretos (`ROLE_REALTOR`, `ROLE_CUSTOMER`, `ROLE_ADMIN`) |
+| Seeds de endereço | 2 endereços vinculados aos usuários certos |
+| Hashes BCrypt | as três senhas documentadas conferem contra o hash gravado (`matches=true`) |
+| Auditoria nas linhas de seed | `created_by = 'system'`, `created_at` preenchido |
+| `DEFAULT` removido | `column_default` vazio em `created_at` e `last_updated_at` |
+| Constraints nomeadas | 15 constraints do projeto, todas no padrão `pk_`/`fk_`/`uk_`/`ck_` |
+| `ON DELETE CASCADE` | remover um usuário apagou seus endereços e vínculos de papel, sem tocar em `roles` |
+
+> O teste de cascade rodou dentro de uma transação encerrada com `ROLLBACK`: a regra foi
+> comprovada sem destruir os dados de demonstração.
+
+Restrições de integridade acrescentadas além do DDL planejado:
+`ck_addresses_state_length` (UF com exatamente 2 caracteres),
+`ck_addresses_zip_code_digits` (CEP com 8 dígitos, sem máscara — a mesma invariante que o VO
+`ZipCode` vai impor na Etapa 7, agora garantida também no banco) e os índices
+`idx_users_name`, `idx_addresses_user_id` e `idx_password_reset_tokens_user_id`.
 
 ---
 
