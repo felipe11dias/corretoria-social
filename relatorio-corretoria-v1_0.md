@@ -62,14 +62,14 @@ schema e uma API REST versionada e documentada.
 | 7 | Value Objects e Validação | 4 | ✅ |
 | 8 | Tratamento de Erros (ProblemDetail) | 7 | ✅ |
 | 9 | Login, Security e JWT | 6, 8 | ✅ |
-| 10 | Services (regras de negócio) | 6, 7, 8, 9 | ⏳ |
+| 10 | Services (regras de negócio) | 6, 7, 8, 9 | ✅ |
 | 11 | Controllers Versionados (Endpoints) | 8, 10 | ⏳ |
 | 12 | Testes (JUnit + Mockito + ArchUnit) | 10, 11 | ⏳ |
 | 13 | Documentação Swagger | 11 | ⏳ |
 | 14 | Entregáveis (Postman, README) | 11, 12, 13 | ⏳ |
 | 15 | Revisão, Evidências e Manutenção | 1–14 | ⏳ |
 
-**Progresso:** 9 de 15 etapas concluídas.
+**Progresso:** 10 de 15 etapas concluídas.
 **Legenda:** ✅ concluída · 🔄 em andamento · ⏳ pendente.
 
 ### Lógica do sequenciamento
@@ -1316,6 +1316,77 @@ A unicidade do e-mail só é correta porque o VO `Email` **normaliza para minús
 checagem e da gravação. Sem isso, `Joao@x.com` e `joao@x.com` passariam pela verificação como
 distintos e quebrariam a regra. A normalização do e-mail é, portanto, parte da regra de
 negócio — não um detalhe cosmético.
+
+### Entrega da etapa ✅
+
+`UserService` criado com as sete operações. `mvn clean test` → **BUILD SUCCESS, 123 testes,
+0 falhas** (24 novos).
+
+#### Como as regras ficaram no código
+
+O corpo de `register` é a sequência da regra, sem aninhamento:
+
+```java
+ensureSelfRegistrationDoesNotRequestAdmin(request.roles());
+
+Email email = new Email(request.email());
+ensureEmailIsAvailable(email.value());
+ensureLoginIsAvailable(request.login());
+```
+
+Cada verificação é um método `ensure...` com nome de intenção, que lança e retorna void. O
+resultado é um método de 10 linhas em um único nível de abstração — em vez do bloco de `if`
+encaixados que a mesma regra produz quando escrita direto.
+
+A ordem importa: **a recusa de `ROLE_ADMIN` vem antes de qualquer acesso ao banco**. O teste
+correspondente afirma `then(userRepository).shouldHaveNoInteractions()` — uma tentativa de
+escalonamento de privilégio não chega sequer a consultar unicidade.
+
+#### Unicidade na atualização
+
+`update` usa `existsByEmailAndIdNot` em vez de `existsByEmail`. Sem ignorar o próprio
+registro, o usuário não conseguiria salvar o cadastro mantendo o e-mail que já é dele — a
+checagem acusaria conflito consigo mesmo. Há teste para os dois lados: e-mail de outro
+usuário dá `409`; manter o próprio passa.
+
+#### Endereços: substituição, não atribuição
+
+`update` chama `user.replaceAddresses(...)`, que limpa e repovoa a **mesma lista gerenciada**.
+Atribuir uma lista nova faria o Hibernate perder o rastro dos órfãos e o `orphanRemoval`
+deixaria de apagar os endereços antigos — o registro acumularia endereços a cada edição.
+
+Um ajuste veio junto: o `AddressMapper` passou a usar
+`nullValueIterableMappingStrategy = RETURN_DEFAULT`. Endereço não é obrigatório, e uma lista
+ausente virava `null`, que quebraria a normalização de CEP com `NullPointerException`.
+
+#### Cobertura dos 11 cenários previstos
+
+| Cenário previsto | Teste |
+|------------------|-------|
+| cadastro válido verifica o hash | ✅ e afirma que o gravado **não** é a senha em texto plano |
+| corretor com `ROLE_REALTOR` | ✅ |
+| cliente com `ROLE_CUSTOMER` | ✅ |
+| `ROLE_ADMIN` → `ForbiddenOperationException` | ✅ e sem tocar no repositório |
+| e-mail duplicado → `DuplicateResourceException` | ✅ |
+| login duplicado → `DuplicateResourceException` | ✅ |
+| normalização de e-mail antes da unicidade | ✅ em dois testes: a checagem e o valor gravado |
+| troca de senha bem-sucedida | ✅ |
+| senha atual incorreta → `InvalidPasswordException` | ✅ |
+| confirmação divergente → `InvalidPasswordException` | ✅ |
+| id inexistente → `ResourceNotFoundException` | ✅ em consulta, atualização e exclusão |
+| busca por nome parcial, sem diferenciar caixa | ✅ |
+
+Acrescentados além do previsto: papel ausente no banco → `ResourceNotFoundException`;
+normalização de CEP na gravação; `update` não altera a senha (afirmando
+`then(passwordEncoder).shouldHaveNoInteractions()`); substituição de endereços; listagem
+paginada.
+
+#### O que ainda não está exercitado
+
+Os testes desta etapa são unitários, com repositórios, encoder e mapeadores mockados: provam
+a **regra**, não a integração. O comportamento real ponta a ponta — inclusive o cenário `U7`
+da matriz, o e-mail duplicado divergindo só na caixa — só pode ser exercitado quando os
+endpoints existirem, na Etapa 11.
 
 ---
 
