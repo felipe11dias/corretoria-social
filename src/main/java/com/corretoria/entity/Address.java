@@ -60,8 +60,8 @@ public class Address extends Auditable {
     @Column(name = "zip_code", nullable = false, length = 9)
     private String zipCode;
 
-    protected Address() {
-        // exigido pelo JPA
+    /** Exigido pelo JPA e pelo MapStruct (ver {@link User#User()}). */
+    public Address() {
     }
 
     @Override

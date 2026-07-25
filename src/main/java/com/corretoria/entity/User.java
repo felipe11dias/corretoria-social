@@ -84,15 +84,12 @@ public class User extends Auditable {
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PasswordResetToken> passwordResetTokens = new ArrayList<>();
 
-    protected User() {
-        // exigido pelo JPA
-    }
-
-    public User(String name, String email, String login, String password) {
-        this.name = name;
-        this.email = email;
-        this.login = login;
-        this.password = password;
+    /**
+     * Exigido pelo JPA e pelo MapStruct, que instancia por construtor sem argumentos e
+     * preenche por setters — comportamento previsível, sem ambiguidade de qual construtor
+     * seria escolhido.
+     */
+    public User() {
     }
 
     /**

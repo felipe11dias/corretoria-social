@@ -208,6 +208,22 @@ devem ser **removidos na Etapa 12**, quando todos os pacotes estiverem populados
 | `archRule.failOnEmptyShould=false` | `src/test/resources/archunit.properties` | pacote ainda vazio faria a regra falhar por ausência de código, não por violação |
 | `.withOptionalLayers(true)` | regra `layeredArchitecture()` | camada ainda vazia seria reportada como violação |
 
+### Código gerado também é código
+
+As regras valem para o que o build gera, não só para o que se escreve à mão — e é assim que
+deve ser: `UserMapperImpl` é um bean Spring como qualquer outro.
+
+Caso concreto: o MapStruct, por padrão, injeta mapeadores auxiliares com `@Autowired` **em
+campo**, o que viola `semAutowiredEmCampo`. A correção é na origem — no `pom.xml`:
+
+```xml
+<arg>-Amapstruct.defaultInjectionStrategy=constructor</arg>
+```
+
+Com isso o gerado passa a usar construtor e campo `final`, conforme o projeto. **Nunca
+exclua o pacote `mapper` das regras para silenciar esse erro:** o problema é a configuração
+do gerador, não a regra.
+
 ---
 
 ## 6. Quando `ArchitectureTest` falha

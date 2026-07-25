@@ -59,7 +59,7 @@ schema e uma API REST versionada e documentada.
 | 4 | Modelagem das Entidades e Banco de Dados | 2 | ✅ |
 | 5 | Migrations e Seeds (Flyway) | 3, 4 | ✅ |
 | 6 | Repositories | 5 | ✅ |
-| 7 | Value Objects e Validação | 4 | ⏳ |
+| 7 | Value Objects e Validação | 4 | ✅ |
 | 8 | Tratamento de Erros (ProblemDetail) | 7 | ⏳ |
 | 9 | Login, Security e JWT | 6, 8 | ⏳ |
 | 10 | Services (regras de negócio) | 6, 7, 8, 9 | ⏳ |
@@ -69,7 +69,7 @@ schema e uma API REST versionada e documentada.
 | 14 | Entregáveis (Postman, README) | 11, 12, 13 | ⏳ |
 | 15 | Revisão, Evidências e Manutenção | 1–14 | ⏳ |
 
-**Progresso:** 6 de 15 etapas concluídas.
+**Progresso:** 7 de 15 etapas concluídas.
 **Legenda:** ✅ concluída · 🔄 em andamento · ⏳ pendente.
 
 ### Lógica do sequenciamento
@@ -904,6 +904,70 @@ usuário.
 Princípio aplicado (SOLID/clean code): a entidade nunca cruza a fronteira da API. O
 Controller trafega apenas VOs; o Service faz a tradução VO ↔ entidade — protegendo o
 domínio, impedindo o vazamento da senha e desacoplando o contrato REST do schema.
+
+### Entrega da etapa ✅
+
+15 classes: 2 utilitárias, 2 VOs de valor, 5 VOs de entrada, 4 VOs de saída e 2 mapeadores.
+`mvn clean test` → **BUILD SUCCESS, 67 testes, 0 falhas** (30 de arquitetura + 37 novos).
+
+#### O mapeador não conhece a senha
+
+Decisão que sustenta a regra "senha só existe como hash": o `UserMapper` marca `password` e
+`roles` como `ignore`. O código gerado confirma — não há `setPassword` nem `setRoles` em
+`UserMapperImpl`. A senha em texto plano **nunca chega à entidade**; o serviço aplica o hash
+e resolve os papéis. Um `@AfterMapping` fecha a referência de volta dos endereços, sem a qual
+`addresses.user_id` sairia nulo e o `INSERT` violaria o `NOT NULL`.
+
+Para que o MapStruct instanciasse de forma previsível, os construtores sem argumentos de
+`User` e `Address` passaram a ser públicos: havendo um construtor sem argumentos acessível, o
+MapStruct o usa e preenche por setters, em vez de escolher entre sobrecargas.
+
+#### A guarda de arquitetura vetou código gerado
+
+O `ArchitectureTest` reprovou o build com uma violação em `UserMapperImpl` — classe que
+ninguém escreveu:
+
+```
+Field <com.corretoria.mapper.UserMapperImpl.addressMapper> is annotated with @Autowired
+```
+
+O MapStruct injeta mapeadores auxiliares com `@Autowired` em campo, o que o projeto proíbe. A
+correção foi **na origem**, configurando o gerador no `pom.xml`
+(`-Amapstruct.defaultInjectionStrategy=constructor`), e não excluindo o pacote `mapper` da
+regra. O gerado passou a usar construtor com campo `final` — e, com isso, foi possível
+**reforçar** a regra `camposDeDependenciaSaoFinal`, que antes precisava abrir exceção para o
+pacote `mapper`. O episódio está registrado na skill de arquitetura sob "Código gerado também
+é código".
+
+#### Testes
+
+37 testes cobrindo as invariantes, caminho feliz e triste. O mais importante deles não testa
+formatação:
+
+```java
+assertThat(new Email("A@x.com")).isEqualTo(new Email("a@x.com"));
+```
+
+É a prova da regra de e-mail único — sem a normalização, os dois endereços passariam pela
+checagem de unicidade como distintos. `TextUtilsTest` cobre também o uso de `Locale.ROOT`: com
+o locale turco, `"I".toLowerCase()` vira `"ı"` e quebraria qualquer comparação de e-mail.
+
+#### Decisões de contrato
+
+- **`LoginRequest` sem `@Size`/`@Pattern`.** Restringir o formato devolveria `400` para
+  credencial malformada e `401` para credencial incorreta — a diferença entre as respostas
+  permitiria enumerar logins válidos. Toda credencial inválida responde igual.
+- **`UserUpdateRequest` não aceita senha nem papéis.** A troca de senha tem endpoint próprio e
+  a concessão de papéis é do administrador; aceitá-los na edição abriria escalonamento de
+  privilégio por uma rota de atualização.
+- **Confirmação de senha validada no serviço, não por Bean Validation.** Divergência entre
+  `newPassword` e `confirmPassword` é regra de negócio: responde
+  `/problems/invalid-password`, não erro de formato de campo.
+- **Senha limitada a 72 caracteres.** É o limite do BCrypt, que ignora silenciosamente o que
+  passa disso — sem o `@Size`, dois usuários com senhas longas e prefixo comum autenticariam
+  um com a senha do outro.
+- **`AuthResponse.bearer(...)`** como fábrica, para o esquema `Bearer` não virar literal
+  repetido no serviço.
 
 ---
 

@@ -172,7 +172,7 @@ public class ArchitectureTest {
 
     @ArchTest
     static final ArchRule camposDeDependenciaSaoFinal = fields()
-            .that().areDeclaredInClassesThat().resideInAnyPackage(SERVICE, CONTROLLER, SECURITY)
+            .that().areDeclaredInClassesThat().resideInAnyPackage(SERVICE, CONTROLLER, SECURITY, MAPPER)
             .and().areNotStatic()
             .should().beFinal()
             .as("Campos de dependência são private final, atribuídos no construtor")

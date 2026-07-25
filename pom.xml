@@ -162,6 +162,10 @@
                     <compilerArgs>
                         <arg>-Amapstruct.defaultComponentModel=spring</arg>
                         <arg>-Amapstruct.unmappedTargetPolicy=ERROR</arg>
+                        <!-- Sem isto o MapStruct gera @Autowired em campo nos mapeadores que
+                             usam outros mapeadores, violando a regra de injeção por
+                             construtor do projeto (ArchitectureTest.semAutowiredEmCampo). -->
+                        <arg>-Amapstruct.defaultInjectionStrategy=constructor</arg>
                     </compilerArgs>
                 </configuration>
             </plugin>
