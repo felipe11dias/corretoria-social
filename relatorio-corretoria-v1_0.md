@@ -56,7 +56,7 @@ schema e uma API REST versionada e documentada.
 | 1 | Governança por Skills (nomenclatura, arquitetura, Java/SOLID) | — | ✅ |
 | 2 | Setup do Projeto | 1 | ✅ |
 | 3 | Execução com Docker Compose | 2 | ✅ |
-| 4 | Modelagem das Entidades e Banco de Dados | 2 | ⏳ |
+| 4 | Modelagem das Entidades e Banco de Dados | 2 | ✅ |
 | 5 | Migrations e Seeds (Flyway) | 3, 4 | ⏳ |
 | 6 | Repositories | 5 | ⏳ |
 | 7 | Value Objects e Validação | 4 | ⏳ |
@@ -69,7 +69,7 @@ schema e uma API REST versionada e documentada.
 | 14 | Entregáveis (Postman, README) | 11, 12, 13 | ⏳ |
 | 15 | Revisão, Evidências e Manutenção | 1–14 | ⏳ |
 
-**Progresso:** 3 de 15 etapas concluídas.
+**Progresso:** 4 de 15 etapas concluídas.
 **Legenda:** ✅ concluída · 🔄 em andamento · ⏳ pendente.
 
 ### Lógica do sequenciamento
@@ -616,6 +616,59 @@ CREATE TABLE addresses (
     zip_code     VARCHAR(9)   NOT NULL
 );
 ```
+
+### Entrega da etapa ✅
+
+Classes criadas:
+
+| Classe | Pacote | Papel |
+|--------|--------|-------|
+| `RoleName` | `enums` | `ROLE_ADMIN`, `ROLE_REALTOR`, `ROLE_CUSTOMER` |
+| `Auditable` | `entity` | `@MappedSuperclass` + `AuditingEntityListener` |
+| `User` | `entity` | agregado raiz da identidade |
+| `Role` | `entity` | papel persistido |
+| `Address` | `entity` | endereço, filho do agregado `User` |
+| `PasswordResetToken` | `entity` | token de redefinição, filho do agregado `User` |
+| `SpringSecurityAuditorAware` | `security` | resolve o autor da escrita |
+
+`mvn clean test` → **BUILD SUCCESS, 30 testes, 0 falhas**: as entidades entraram sem violar
+nenhuma regra de arquitetura — em particular, nenhuma anotação de API (`@Schema`,
+`@JsonProperty`, Bean Validation) vazou para o domínio e nada em `entity` aponta para camada
+superior.
+
+#### Decisões de mapeamento
+
+- **`roles` em `FetchType.EAGER`.** Contraria o default recomendado, e é proposital: com
+  `open-in-view: false`, o `CustomUserDetailsService` (Etapa 9) precisa das autoridades fora
+  de transação a cada requisição. O conjunto é minúsculo (no máximo três papéis) e o custo é
+  menor que o de um `LazyInitializationException` a cada login.
+- **`addresses` em `LAZY`, com cascade e `orphanRemoval`.** Consequência a respeitar na
+  Etapa 10: o service precisa carregar os endereços **dentro** da transação antes de mapear
+  para VO, já que não há sessão aberta na camada web.
+- **`replaceAddresses` reaproveita a lista gerenciada** (`clear()` + re-add) em vez de
+  atribuir uma lista nova — trocar a referência faz o Hibernate perder o rastro dos órfãos e
+  o `orphanRemoval` deixa de apagar os endereços antigos.
+- **`equals`/`hashCode` por `id`**, nunca por coleção, e `id` nulo nunca é igual a `id` nulo:
+  duas entidades ainda não persistidas são objetos distintos.
+- **Construtor padrão `protected`**: exigido pelo JPA, mas fora do alcance do código de
+  negócio, que usa os construtores com os campos obrigatórios.
+- **`PasswordResetToken.isExpiredAt(LocalDateTime)`** recebe o instante em vez de chamar
+  `LocalDateTime.now()`. A entidade guarda a regra; quem decide "agora" é o service, com um
+  `Clock` injetado — do contrário a expiração seria intestável.
+
+#### Dois pontos de atenção que a Etapa 5 precisa resolver
+
+Ambos nascem do confronto entre o DDL planejado acima e o mapeamento agora escrito:
+
+1. **`BIGINT GENERATED ALWAYS AS IDENTITY` rejeita id explícito no `INSERT`.** Os seeds
+   (V2/V3) não podem fixar `id`, ou precisarão de `OVERRIDING SYSTEM VALUE`.
+2. **As colunas de auditoria entram só na V5, como `NOT NULL`.** Como `roles` já é populada na
+   V1, a V5 não pode simplesmente adicionar `created_at NOT NULL` a uma tabela com linhas —
+   precisa de `DEFAULT` no `ADD COLUMN` ou de backfill antes de aplicar a restrição.
+
+> A conferência real do mapeamento acontece na Etapa 5: só com o schema criado pelo Flyway o
+> Hibernate em `ddl-auto: validate` consegue confirmar que entidade e tabela batem. Até lá,
+> o que está verificado é a compilação e a conformidade arquitetural.
 
 ---
 
