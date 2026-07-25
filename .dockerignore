@@ -1,0 +1,14 @@
+target/
+.git/
+.gitignore
+.gitattributes
+.idea/
+*.iml
+.env
+.claude/
+docs/
+postman/
+*.md
+Dockerfile
+.dockerignore
+docker-compose.yml

@@ -55,7 +55,7 @@ schema e uma API REST versionada e documentada.
 |---|-------|------------|--------|
 | 1 | Governança por Skills (nomenclatura, arquitetura, Java/SOLID) | — | ✅ |
 | 2 | Setup do Projeto | 1 | ✅ |
-| 3 | Execução com Docker Compose | 2 | ⏳ |
+| 3 | Execução com Docker Compose | 2 | ✅ |
 | 4 | Modelagem das Entidades e Banco de Dados | 2 | ⏳ |
 | 5 | Migrations e Seeds (Flyway) | 3, 4 | ⏳ |
 | 6 | Repositories | 5 | ⏳ |
@@ -69,7 +69,7 @@ schema e uma API REST versionada e documentada.
 | 14 | Entregáveis (Postman, README) | 11, 12, 13 | ⏳ |
 | 15 | Revisão, Evidências e Manutenção | 1–14 | ⏳ |
 
-**Progresso:** 2 de 15 etapas concluídas.
+**Progresso:** 3 de 15 etapas concluídas.
 **Legenda:** ✅ concluída · 🔄 em andamento · ⏳ pendente.
 
 ### Lógica do sequenciamento
@@ -389,6 +389,50 @@ docker compose down -v
 
 A aplicação ficará disponível em `http://localhost:8080` e o Swagger em
 `http://localhost:8080/swagger-ui.html`.
+
+### Entrega da etapa ✅
+
+Arquivos criados: `docker-compose.yml`, `Dockerfile`, `.dockerignore` e `.env.example`.
+
+#### Serviço `db`
+
+`postgres:16`, contêiner `corretoria-db`, com **volume nomeado** `postgres-data` — os dados
+sobrevivem a `docker compose down` e só são apagados com `down -v`.
+
+O serviço declara um **healthcheck** (`pg_isready`) e o `app` depende dele com
+`condition: service_healthy`. Sem isso o `depends_on` só garante que o contêiner do banco
+*iniciou*, não que ele aceita conexão: o Flyway tentaria migrar contra um PostgreSQL que
+ainda está subindo e a aplicação morreria no boot.
+
+#### Serviço `app`
+
+Build multi-estágio, imagem `corretoria-api:1.0.0`:
+
+- **Estágio de build** sobre `maven:3.9-eclipse-temurin-21`. Não usa o `mvnw` de propósito:
+  o wrapper é um script shell e, clonado no Windows, pode chegar ao contêiner com CRLF e
+  falhar. O `pom.xml` é copiado antes do `src` para que a camada de dependências só seja
+  reconstruída quando o `pom` mudar.
+- **Estágio de runtime** sobre `eclipse-temurin:21-jre-alpine` (JRE, não JDK), com usuário
+  não-root `corretoria`.
+
+Dentro da rede do compose o host do banco é o **nome do serviço** (`DB_HOST=db`), não
+`localhost` — daí a variável ter valor diferente conforme o app roda na máquina ou no compose.
+
+#### Verificação executada
+
+| Verificação | Resultado |
+|-------------|-----------|
+| `docker compose config` | válido; serviços `db` e `app` |
+| `docker compose up -d db` | `corretoria-db` no ar |
+| Healthcheck | `Up (healthy)` |
+| Versão do banco | PostgreSQL **16.14** |
+| Banco criado | `corretoria-app`, encoding UTF8 |
+| Porta publicada | `0.0.0.0:5432` |
+| Volume nomeado | `corretoria_postgres-data` |
+| `docker compose build app` | imagem `corretoria-api:1.0.0` construída (544 MB) |
+
+O serviço `app` foi **construído**, mas ainda não é executado: conforme o sequenciamento, ele
+passa a ser exercitado na Etapa 9, quando a aplicação já inicializa com segurança configurada.
 
 ---
 

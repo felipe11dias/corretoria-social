@@ -1,0 +1,47 @@
+services:
+
+  db:
+    image: postgres:16
+    container_name: corretoria-db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-corretoria-app}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # O app só sobe depois que o banco aceita conexão — sem isso o Flyway
+      # tenta migrar antes do PostgreSQL estar pronto e a aplicação morre no boot.
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-corretoria-app}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: corretoria-api:1.0.0
+    container_name: corretoria-app
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Dentro da rede do compose o host do banco é o nome do serviço.
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-corretoria-app}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      JWT_SECRET: ${JWT_SECRET:-troque-este-segredo-de-exemplo-por-um-de-no-minimo-256-bits}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-3600000}
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
