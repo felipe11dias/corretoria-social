@@ -136,8 +136,6 @@ class UserControllerTest {
         return """
                 {
                   "name": "João Silva",
-                  "email": "joao.silva@email.com",
-                  "login": "joao.silva",
                   "addresses": []
                 }
                 """;

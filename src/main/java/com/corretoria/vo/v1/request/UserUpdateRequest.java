@@ -19,15 +19,6 @@ public record UserUpdateRequest(
         @Size(max = 255, message = "O nome deve ter no máximo 255 caracteres")
         String name,
 
-        @NotBlank(message = "O e-mail é obrigatório")
-        @Email(message = "E-mail inválido")
-        @Size(max = 255, message = "O e-mail deve ter no máximo 255 caracteres")
-        String email,
-
-        @NotBlank(message = "O login é obrigatório")
-        @Size(min = 4, max = 255, message = "O login deve ter entre 4 e 255 caracteres")
-        String login,
-
         @Valid
         List<AddressRequest> addresses) {
 }

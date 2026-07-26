@@ -280,7 +280,7 @@ class UserServiceTest {
             given(userRepository.save(any())).willAnswer(call -> call.getArgument(0));
             given(userMapper.toResponse(any())).willReturn(aResponse());
 
-            userService.update(USER_ID, new UserUpdateRequest(NAME, EMAIL, LOGIN, List.of()));
+            userService.update(USER_ID, new UserUpdateRequest(NAME, List.of()));
 
             then(userRepository).should().save(userCaptor.capture());
             assertThat(userCaptor.getValue().getPassword()).isEqualTo(HASHED_PASSWORD);
@@ -288,28 +288,25 @@ class UserServiceTest {
         }
 
         @Test
-        @DisplayName("update - e-mail de outro usuário - lança DuplicateResourceException")
-        void shouldRejectEmailUsedByAnotherUser() {
-            given(userRepository.findById(USER_ID)).willReturn(Optional.of(anEmptyUser()));
-            given(userRepository.existsByEmailAndIdNot(EMAIL, USER_ID)).willReturn(true);
-
-            assertThatThrownBy(() -> userService.update(
-                    USER_ID, new UserUpdateRequest(NAME, EMAIL, LOGIN, List.of())))
-                    .isInstanceOf(DuplicateResourceException.class);
-        }
-
-        @Test
-        @DisplayName("update - mantendo o próprio e-mail - não acusa conflito consigo mesmo")
-        void shouldAllowKeepingOwnEmail() {
-            // existsByEmailAndIdNot, e não existsByEmail: o próprio registro é ignorado.
-            given(userRepository.findById(USER_ID)).willReturn(Optional.of(anEmptyUser()));
-            given(userRepository.existsByEmailAndIdNot(EMAIL, USER_ID)).willReturn(false);
+        @DisplayName("update - e-mail e login são imutáveis - permanecem os do cadastro")
+        void shouldNotChangeEmailNorLogin() {
+            // A atualização mexe apenas em nome e endereços. Como e-mail e login não podem
+            // mudar, a unicidade não precisa ser revalidada aqui — e o repositório não é
+            // consultado para isso.
+            User existing = anEmptyUser();
+            existing.setEmail(EMAIL);
+            existing.setLogin(LOGIN);
+            given(userRepository.findById(USER_ID)).willReturn(Optional.of(existing));
             given(addressMapper.toEntities(any())).willReturn(new ArrayList<>());
             given(userRepository.save(any())).willAnswer(call -> call.getArgument(0));
             given(userMapper.toResponse(any())).willReturn(aResponse());
 
-            assertThat(userService.update(
-                    USER_ID, new UserUpdateRequest(NAME, EMAIL, LOGIN, List.of()))).isNotNull();
+            userService.update(USER_ID, new UserUpdateRequest("Outro Nome", List.of()));
+
+            then(userRepository).should().save(userCaptor.capture());
+            assertThat(userCaptor.getValue().getEmail()).isEqualTo(EMAIL);
+            assertThat(userCaptor.getValue().getLogin()).isEqualTo(LOGIN);
+            assertThat(userCaptor.getValue().getName()).isEqualTo("Outro Nome");
         }
 
         @Test
@@ -317,8 +314,8 @@ class UserServiceTest {
         void shouldFailForUnknownId() {
             given(userRepository.findById(USER_ID)).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> userService.update(
-                    USER_ID, new UserUpdateRequest(NAME, EMAIL, LOGIN, List.of())))
+            assertThatThrownBy(() ->
+                    userService.update(USER_ID, new UserUpdateRequest(NAME, List.of())))
                     .isInstanceOf(ResourceNotFoundException.class);
         }
 
@@ -339,7 +336,7 @@ class UserServiceTest {
             given(userRepository.save(any())).willAnswer(call -> call.getArgument(0));
             given(userMapper.toResponse(any())).willReturn(aResponse());
 
-            userService.update(USER_ID, new UserUpdateRequest(NAME, EMAIL, LOGIN,
+            userService.update(USER_ID, new UserUpdateRequest(NAME,
                     List.of(new AddressRequest("Rua", "1", null, null, "Fortaleza", "CE",
                             "60160-230"))));
 

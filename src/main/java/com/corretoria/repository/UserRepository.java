@@ -19,14 +19,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByLogin(String login);
 
-    /**
-     * Unicidade na atualização: ignora o próprio registro, senão o usuário não conseguiria
-     * salvar mantendo o e-mail que já é dele.
-     */
-    boolean existsByEmailAndIdNot(String email, Long id);
-
-    boolean existsByLoginAndIdNot(String login, Long id);
-
     Optional<User> findByLogin(String login);
 
     Page<User> findByNameContainingIgnoreCase(String name, Pageable pageable);

@@ -796,7 +796,6 @@ manual):
 | Repository | Métodos | Atende ao requisito |
 |------------|---------|---------------------|
 | `UserRepository` | `existsByEmail`, `existsByLogin` | Unicidade de e-mail e login no cadastro |
-| | `existsByEmailAndIdNot`, `existsByLoginAndIdNot` | Unicidade na atualização, ignorando o próprio registro |
 | | `findByLogin` | Validação de login / autenticação |
 | | `findByNameContainingIgnoreCase` | Busca paginada de usuários pelo nome (gestão do admin) |
 | `RoleRepository` | `findByName` | Resolução das entidades de papel |
@@ -812,10 +811,10 @@ uma linha de SQL manual.
 
 #### Métodos além do planejado
 
-O plano listava `existsByEmail` e `existsByLogin`. Acrescentei **`existsByEmailAndIdNot`** e
-**`existsByLoginAndIdNot`**, exigidos pela regra de atualização da Etapa 10: revalidar
-unicidade *ignorando o próprio registro*. Sem eles, um usuário não conseguiria salvar o
-cadastro mantendo o e-mail que já é dele — a checagem acusaria conflito consigo mesmo.
+Existiram também `existsByEmailAndIdNot` e `existsByLoginAndIdNot`, para revalidar unicidade
+na atualização ignorando o próprio registro. Foram **removidos** quando e-mail e login
+passaram a ser imutáveis após o cadastro (ver Etapa 10): sem nada que possa alterá-los, não
+há o que revalidar, e método sem uso é código morto.
 
 A busca por nome recebeu assinatura paginada — `Page<User> findByNameContainingIgnoreCase
 (String name, Pageable pageable)` — para casar com a listagem paginada da Etapa 11.
@@ -878,7 +877,8 @@ o `ZipCode` para os 8 dígitos.
 ### VOs de contrato (`vo/v1`)
 
 **Entrada** (`vo/v1/request`, sufixo `Request`): `UserRegistrationRequest`,
-`UserUpdateRequest` (sem senha), `PasswordChangeRequest`, `LoginRequest`, `AddressRequest`.
+`UserUpdateRequest` (apenas nome e endereços), `PasswordChangeRequest`, `LoginRequest`,
+`AddressRequest`.
 
 **Saída** (`vo/v1/response`, sufixo `Response`): `UserResponse` (nunca expõe senha),
 `AddressResponse`, `RoleResponse`, `AuthResponse` (token JWT + expiração).
@@ -1296,7 +1296,7 @@ padronizadas como `ProblemDetail` na Etapa 8.
 | Método | Regras aplicadas |
 |--------|------------------|
 | `register` | **Rejeita autocadastro com `ROLE_ADMIN`** (endpoint público → `ForbiddenOperationException`/403), normaliza o e-mail (VO `Email`), garante unicidade de e-mail e login, aplica **hash BCrypt** na senha, resolve os papéis (`RoleName` → entidades `Role`) e normaliza os CEPs (VO `ZipCode`). |
-| `update` | Atualiza nome, e-mail e login (revalidando unicidade, ignorando o próprio registro) e substitui os endereços. **Não** altera a senha. |
+| `update` | Atualiza **nome e endereços**. E-mail, login, senha e papéis são imutáveis por esta via. |
 | `changePassword` | Confere a senha atual (`BCrypt.matches`), valida que a nova senha e a confirmação coincidem, e grava o novo hash. |
 | `delete` | Remove o usuário (e, por cascade, seus endereços, tokens e vínculos de papel). |
 | `findById` / `findByName` / `findAll` | Consultas; `findByName` usa busca parcial sem diferenciar maiúsculas/minúsculas. |
@@ -1342,12 +1342,29 @@ A ordem importa: **a recusa de `ROLE_ADMIN` vem antes de qualquer acesso ao banc
 correspondente afirma `then(userRepository).shouldHaveNoInteractions()` — uma tentativa de
 escalonamento de privilégio não chega sequer a consultar unicidade.
 
-#### Unicidade na atualização
+#### E-mail e login imutáveis após o cadastro
 
-`update` usa `existsByEmailAndIdNot` em vez de `existsByEmail`. Sem ignorar o próprio
-registro, o usuário não conseguiria salvar o cadastro mantendo o e-mail que já é dele — a
-checagem acusaria conflito consigo mesmo. Há teste para os dois lados: e-mail de outro
-usuário dá `409`; manter o próprio passa.
+**Decisão de contrato tomada após a primeira versão da etapa.** O `UserUpdateRequest` aceitava
+`name`, `email`, `login` e `addresses`; hoje aceita apenas **`name` e `addresses`**. E-mail e
+login são definidos no cadastro e não mudam por esta via — como já era o caso da senha, que
+tem endpoint próprio, e dos papéis, que são concessão do administrador.
+
+Consequências, todas aplicadas:
+
+| Efeito | Providência |
+|--------|-------------|
+| a revalidação de unicidade na atualização perdeu objeto | os métodos `ensure...ForOthers` saíram do service |
+| `existsByEmailAndIdNot` e `existsByLoginAndIdNot` ficaram sem uso | removidos do `UserRepository` (Etapa 6) |
+| o `409` deixou de ser alcançável no `PUT` | retirado da documentação Swagger do endpoint |
+| o cenário `M3` da matriz virou impossível | removido da Etapa 15 |
+
+No lugar dos dois testes de unicidade entrou um que trava a **nova** regra: após atualizar,
+e-mail e login permanecem os do cadastro, e só o nome muda.
+
+> Vale registrar o efeito colateral: um usuário que digitou o e-mail errado no autocadastro
+> não tem como corrigi-lo sozinho — depende de o administrador excluir e recriar a conta. Se
+> a intenção for permitir a correção, o caminho conforme é um endpoint próprio para troca de
+> e-mail, como o que já existe para a senha, e não a reabertura do `PUT`.
 
 #### Endereços: substituição, não atribuição
 
@@ -1406,7 +1423,7 @@ montados pelo `UserModelAssembler`.
 | `GET` | `/api/v1/users/{id}` | Consulta por id | `200 OK` | Dono ou `ROLE_ADMIN` |
 | `GET` | `/api/v1/users?name=...` | Busca paginada por nome (parcial) | `200 OK` | `ROLE_ADMIN` |
 | `GET` | `/api/v1/users` | Lista paginada | `200 OK` | `ROLE_ADMIN` |
-| `PUT` | `/api/v1/users/{id}` | Atualiza dados | `200 OK` | Dono ou `ROLE_ADMIN` |
+| `PUT` | `/api/v1/users/{id}` | Atualiza nome e endereços | `200 OK` | Dono ou `ROLE_ADMIN` |
 | `PATCH` | `/api/v1/users/{id}/password` | Troca de senha (endpoint exclusivo) | `204 No Content` | Dono ou `ROLE_ADMIN` |
 | `DELETE` | `/api/v1/users/{id}` | Exclui | `204 No Content` | Dono ou `ROLE_ADMIN` |
 
@@ -1505,7 +1522,7 @@ percorrida inteira** contra a aplicação real e o PostgreSQL do compose.
 |-------|----------|-----------|
 | Cadastro `U1`–`U9` | 9 | ✅ todos conforme |
 | Consulta `C1`–`C11` | 11 | ✅ todos conforme |
-| Atualização `M1`–`M5` | 5 | ✅ todos conforme |
+| Atualização `M1`–`M5` | 5 | ✅ todos conforme (o `M3` foi retirado depois, ao tornar e-mail e login imutáveis) |
 | Senha `P1`–`P5` | 5 | ✅ todos conforme |
 | Exclusão `D1`–`D4` | 4 | ✅ todos conforme |
 
@@ -1867,7 +1884,6 @@ não por endpoint. Um endpoint com cinco retornos possíveis gera cinco evidênc
 |---|----------|---------|--------|-----------------|
 | M1 | `PUT /api/v1/users/{id}` | atualização do próprio cadastro | 200 | — |
 | M2 | `PUT /api/v1/users/{id}` | validação falhando | 400 | `/problems/validation-error` |
-| M3 | `PUT /api/v1/users/{id}` | e-mail já usado por outro usuário | 409 | `/problems/duplicate-resource` |
 | M4 | `PUT /api/v1/users/{id}` | cadastro de outro usuário | 403 | `/problems/access-denied` |
 | M5 | `PUT /api/v1/users/{id}` | id inexistente, via admin | 404 | `/problems/resource-not-found` |
 | P1 | `PATCH /api/v1/users/{id}/password` | troca bem-sucedida | 204 | — |

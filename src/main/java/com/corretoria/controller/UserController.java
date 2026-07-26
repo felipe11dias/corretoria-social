@@ -170,8 +170,10 @@ public class UserController {
     @PreAuthorize(OWNER_OR_ADMIN)
     @SecurityRequirement(name = BEARER_AUTH)
     @Operation(
-            summary = "Atualiza os dados cadastrais",
-            description = "Não altera senha nem papéis. Dono do recurso ou `ROLE_ADMIN`.")
+            summary = "Atualiza nome e endereços",
+            description = """
+                    E-mail, login, senha e papéis são imutáveis por esta via. Dono do recurso \
+                    ou `ROLE_ADMIN`.""")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Atualizado"),
             @ApiResponse(responseCode = "400", description = "Campos inválidos",
@@ -181,9 +183,6 @@ public class UserController {
             @ApiResponse(responseCode = "403", description = "Cadastro de outro usuário",
                     content = @Content),
             @ApiResponse(responseCode = "404", description = "Id inexistente",
-                    content = @Content),
-            @ApiResponse(responseCode = "409",
-                    description = "E-mail ou login já usado por outro usuário",
                     content = @Content)
     })
     public EntityModel<UserResponse> update(

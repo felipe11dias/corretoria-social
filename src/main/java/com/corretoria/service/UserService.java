@@ -77,20 +77,17 @@ public class UserService {
     }
 
     /**
-     * Atualiza dados cadastrais. <strong>Não</strong> altera a senha nem os papéis — cada um
-     * tem sua própria via.
+     * Atualiza nome e endereços.
+     *
+     * <p><strong>E-mail e login são imutáveis após o cadastro</strong>, assim como a senha e
+     * os papéis. Por isso a unicidade não precisa ser revalidada aqui: o que a garantiria já
+     * foi verificado no {@link #register}, e nada que a afete pode mudar por esta via.
      */
     @Transactional
     public UserResponse update(Long id, UserUpdateRequest request) {
         User user = getUserOrThrow(id);
 
-        Email email = new Email(request.email());
-        ensureEmailIsAvailableForOthers(email.value(), id);
-        ensureLoginIsAvailableForOthers(request.login(), id);
-
         user.setName(request.name());
-        user.setEmail(email.value());
-        user.setLogin(request.login());
         user.replaceAddresses(addressMapper.toEntities(request.addresses()));
         normalizeZipCodes(user);
 
@@ -159,18 +156,6 @@ public class UserService {
 
     private void ensureLoginIsAvailable(String login) {
         if (userRepository.existsByLogin(login)) {
-            throw DuplicateResourceException.login(login);
-        }
-    }
-
-    private void ensureEmailIsAvailableForOthers(String normalizedEmail, Long id) {
-        if (userRepository.existsByEmailAndIdNot(normalizedEmail, id)) {
-            throw DuplicateResourceException.email(normalizedEmail);
-        }
-    }
-
-    private void ensureLoginIsAvailableForOthers(String login, Long id) {
-        if (userRepository.existsByLoginAndIdNot(login, id)) {
             throw DuplicateResourceException.login(login);
         }
     }
