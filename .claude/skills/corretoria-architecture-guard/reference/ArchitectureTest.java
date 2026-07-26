@@ -33,6 +33,7 @@ public class ArchitectureTest {
     private static final String VO = "..vo..";
     private static final String UTIL = "..util..";
     private static final String SECURITY = "..security..";
+    private static final String CONFIG = "..config..";
 
     // ---------------------------------------------------------------- camadas
 
@@ -263,6 +264,14 @@ public class ArchitectureTest {
             .haveFullyQualifiedName("org.springframework.security.core.context.SecurityContextHolder")
             .as("A identidade autenticada é resolvida em security ou service: ler o "
                     + "SecurityContextHolder no controller espalha a regra de posse");
+
+    @ArchTest
+    static final ArchRule ninguemDependeDeConfig = noClasses()
+            .that().resideOutsideOfPackage(CONFIG)
+            .should().dependOnClassesThat().resideInAPackage(CONFIG)
+            .as("A configuração é folha na outra ponta: config depende de quem precisar, mas "
+                    + "ninguém depende de config. Depender dela cria ciclo — foi o que "
+                    + "aconteceu quando JwtProperties nasceu ali (Etapa 9)");
 
     @ArchTest
     static final ArchRule securityNaoDependeDeController = noClasses()

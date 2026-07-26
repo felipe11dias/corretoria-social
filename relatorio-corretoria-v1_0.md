@@ -65,11 +65,11 @@ schema e uma API REST versionada e documentada.
 | 10 | Services (regras de negócio) | 6, 7, 8, 9 | ✅ |
 | 11 | Controllers Versionados (Endpoints) | 8, 10 | ✅ |
 | 12 | Testes (JUnit + Mockito + ArchUnit) | 10, 11 | ✅ |
-| 13 | Documentação Swagger | 11 | ⏳ |
+| 13 | Documentação Swagger | 11 | ✅ |
 | 14 | Entregáveis (Postman, README) | 11, 12, 13 | ⏳ |
 | 15 | Revisão, Evidências e Manutenção | 1–14 | ⏳ |
 
-**Progresso:** 12 de 15 etapas concluídas.
+**Progresso:** 13 de 15 etapas concluídas.
 **Legenda:** ✅ concluída · 🔄 em andamento · ⏳ pendente.
 
 ### Lógica do sequenciamento
@@ -1693,6 +1693,59 @@ direto pela interface. Tags: `Autenticação` e `Usuários`.
 Fluxo de uso: chamar `POST /api/v1/auth/login`, copiar o token, clicar em **Authorize**,
 colar o token e executar os demais endpoints. As capturas da interface são produzidas na
 Etapa 15.
+
+### Entrega da etapa ✅
+
+`OpenApiConfig` criado e os dois controllers anotados. `mvn clean test` → **BUILD SUCCESS,
+137 testes, 0 falhas**.
+
+#### Contrato verificado na aplicação real
+
+Consultado em `GET /v3/api-docs` com a aplicação no ar:
+
+```
+titulo : Corretoria API 1.0.0
+tags   : Autenticação, Usuários
+schemes: bearerAuth  (http / bearer / JWT)
+
+POST   /api/v1/auth/login            público  200,400,401
+POST   /api/v1/users                 público  201,400,403,409
+GET    /api/v1/users                 🔒       200,401,403
+GET    /api/v1/users/{id}            🔒       200,401,403,404
+PUT    /api/v1/users/{id}            🔒       200,400,401,403,404,409
+PATCH  /api/v1/users/{id}/password   🔒       204,400,401,403,404
+DELETE /api/v1/users/{id}            🔒       204,401,403,404
+```
+
+Swagger UI e `/v3/api-docs` respondem `200`, e os acentos saem corretos em UTF-8 no contrato.
+
+#### A exigência de token é declarada por operação
+
+O caminho mais curto seria declarar a segurança **globalmente**, no `@OpenAPIDefinition`. Não
+foi o escolhido: o cadeado apareceria também no login e no autocadastro, que são públicos, e
+a documentação passaria a descrever um comportamento que a API não tem. Com
+`@SecurityRequirement` por endpoint, o cadeado marca exatamente os cinco que exigem token — o
+que se confirma na tabela acima.
+
+#### Cada retorno documentado é um `type` do contrato de erro
+
+As descrições dos códigos citam o `type` correspondente
+(`/problems/duplicate-resource`, `/problems/invalid-password`, `/problems/access-denied`…).
+É o que liga a documentação ao registro da Etapa 8: dois erros com o mesmo status ficam
+distinguíveis para quem lê o Swagger, e não apenas para quem lê o código.
+
+Os VOs continuam **sem anotações de Swagger**. As restrições exibidas nos schemas
+(`@NotBlank`, `@Email`, `@Size`) vêm da própria Bean Validation, que já está lá porque é
+regra de contrato — documentar de novo com `@Schema` seria duplicar a mesma informação em dois
+lugares que podem divergir.
+
+#### Regra de arquitetura acrescentada
+
+A skill sempre disse que **ninguém depende de `config`**, mas isso nunca havia sido
+automatizado — e foi exatamente o que causou o ciclo da Etapa 9. Ao anotar os controllers,
+a tentação era importar a constante `OpenApiConfig.BEARER_AUTH`, o que criaria
+`controller → config`. Em vez disso, o nome do esquema é referenciado como literal, e a regra
+`ninguemDependeDeConfig` passou a existir para impedir a reincidência.
 
 ---
 

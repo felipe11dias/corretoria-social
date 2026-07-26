@@ -5,6 +5,12 @@ import com.corretoria.vo.v1.request.PasswordChangeRequest;
 import com.corretoria.vo.v1.request.UserRegistrationRequest;
 import com.corretoria.vo.v1.request.UserUpdateRequest;
 import com.corretoria.vo.v1.response.UserResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.net.URI;
 import org.springframework.data.domain.Page;
@@ -38,7 +44,14 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/v1/users")
+@Tag(name = "Usuários", description = "Cadastro e gestão de usuários")
 public class UserController {
+
+    /**
+     * Referencia o esquema declarado em {@code OpenApiConfig} pelo nome, e não pela constante,
+     * para não criar dependência da apresentação sobre o pacote de configuração.
+     */
+    private static final String BEARER_AUTH = "bearerAuth";
 
     /**
      * Dono do recurso ou administrador. Sem o {@code isSelf}, qualquer token válido leria ou
@@ -65,6 +78,27 @@ public class UserController {
 
     /** Autocadastro de corretor ou cliente. Público — o serviço recusa {@code ROLE_ADMIN}. */
     @PostMapping
+    @Operation(
+            summary = "Autocadastro de corretor ou cliente",
+            description = """
+                    Endpoint público, sem token. Solicitar `ROLE_ADMIN` responde 403: papel \
+                    privilegiado nasce apenas por seed ou por fluxo autenticado de \
+                    administrador.""")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Criado, com cabeçalho Location"),
+            @ApiResponse(responseCode = "400",
+                    description = "Campos inválidos (`/problems/validation-error`) ou "
+                            + "invariante de VO violada (`/problems/invalid-field-format`)",
+                    content = @Content),
+            @ApiResponse(responseCode = "403",
+                    description = "Papel privilegiado solicitado "
+                            + "(`/problems/forbidden-operation`)",
+                    content = @Content),
+            @ApiResponse(responseCode = "409",
+                    description = "E-mail ou login já cadastrado "
+                            + "(`/problems/duplicate-resource`)",
+                    content = @Content)
+    })
     public ResponseEntity<EntityModel<UserResponse>> register(
             @Valid @RequestBody UserRegistrationRequest request) {
 
@@ -77,6 +111,22 @@ public class UserController {
 
     @GetMapping("/{id}")
     @PreAuthorize(OWNER_OR_ADMIN)
+    @SecurityRequirement(name = BEARER_AUTH)
+    @Operation(
+            summary = "Consulta um usuário por id",
+            description = "Exige ser o dono do recurso ou `ROLE_ADMIN`.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Usuário encontrado"),
+            @ApiResponse(responseCode = "401",
+                    description = "Token ausente, expirado ou inválido "
+                            + "(`/problems/missing-token`)", content = @Content),
+            @ApiResponse(responseCode = "403",
+                    description = "Recurso de outro usuário (`/problems/access-denied`)",
+                    content = @Content),
+            @ApiResponse(responseCode = "404",
+                    description = "Id inexistente (`/problems/resource-not-found`)",
+                    content = @Content)
+    })
     public EntityModel<UserResponse> findById(@PathVariable Long id) {
         return userModelAssembler.toModel(userService.findById(id));
     }
@@ -89,6 +139,22 @@ public class UserController {
      */
     @GetMapping
     @PreAuthorize(ADMIN_ONLY)
+    @SecurityRequirement(name = BEARER_AUTH)
+    @Operation(
+            summary = "Lista ou busca usuários, paginado",
+            description = """
+                    Exclusivo de `ROLE_ADMIN`. Sem `name`, lista todos; com `name`, filtra por \
+                    trecho do nome sem diferenciar maiúsculas. Aceita `page`, `size` e `sort` \
+                    (padrão `name`).""")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Página de usuários com links"),
+            @ApiResponse(responseCode = "401",
+                    description = "Token ausente ou inválido (`/problems/missing-token`)",
+                    content = @Content),
+            @ApiResponse(responseCode = "403",
+                    description = "Usuário sem `ROLE_ADMIN` (`/problems/access-denied`)",
+                    content = @Content)
+    })
     public PagedModel<EntityModel<UserResponse>> findAll(
             @RequestParam(required = false) String name,
             @PageableDefault(sort = "name") Pageable pageable) {
@@ -102,6 +168,24 @@ public class UserController {
 
     @PutMapping("/{id}")
     @PreAuthorize(OWNER_OR_ADMIN)
+    @SecurityRequirement(name = BEARER_AUTH)
+    @Operation(
+            summary = "Atualiza os dados cadastrais",
+            description = "Não altera senha nem papéis. Dono do recurso ou `ROLE_ADMIN`.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Atualizado"),
+            @ApiResponse(responseCode = "400", description = "Campos inválidos",
+                    content = @Content),
+            @ApiResponse(responseCode = "401", description = "Token ausente ou inválido",
+                    content = @Content),
+            @ApiResponse(responseCode = "403", description = "Cadastro de outro usuário",
+                    content = @Content),
+            @ApiResponse(responseCode = "404", description = "Id inexistente",
+                    content = @Content),
+            @ApiResponse(responseCode = "409",
+                    description = "E-mail ou login já usado por outro usuário",
+                    content = @Content)
+    })
     public EntityModel<UserResponse> update(
             @PathVariable Long id, @Valid @RequestBody UserUpdateRequest request) {
 
@@ -112,6 +196,24 @@ public class UserController {
     @PatchMapping("/{id}/password")
     @PreAuthorize(OWNER_OR_ADMIN)
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @SecurityRequirement(name = BEARER_AUTH)
+    @Operation(
+            summary = "Troca a senha",
+            description = """
+                    Exige a senha atual mesmo com o usuário já autenticado: um token vazado \
+                    não deve bastar para tomar a conta.""")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Senha alterada"),
+            @ApiResponse(responseCode = "400",
+                    description = "Senha atual incorreta ou confirmação divergente "
+                            + "(`/problems/invalid-password`)", content = @Content),
+            @ApiResponse(responseCode = "401", description = "Token ausente ou inválido",
+                    content = @Content),
+            @ApiResponse(responseCode = "403", description = "Senha de outro usuário",
+                    content = @Content),
+            @ApiResponse(responseCode = "404", description = "Id inexistente",
+                    content = @Content)
+    })
     public void changePassword(
             @PathVariable Long id, @Valid @RequestBody PasswordChangeRequest request) {
 
@@ -121,6 +223,19 @@ public class UserController {
     @DeleteMapping("/{id}")
     @PreAuthorize(OWNER_OR_ADMIN)
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @SecurityRequirement(name = BEARER_AUTH)
+    @Operation(
+            summary = "Exclui o usuário",
+            description = "Remove também endereços, tokens e vínculos de papel, por cascade.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Excluído"),
+            @ApiResponse(responseCode = "401", description = "Token ausente ou inválido",
+                    content = @Content),
+            @ApiResponse(responseCode = "403", description = "Cadastro de outro usuário",
+                    content = @Content),
+            @ApiResponse(responseCode = "404", description = "Id inexistente",
+                    content = @Content)
+    })
     public void delete(@PathVariable Long id) {
         userService.delete(id);
     }
