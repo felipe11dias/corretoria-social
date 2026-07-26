@@ -209,13 +209,11 @@ Regra prática: ao rodar `mvn test`, confirme que o `ArchitectureTest` reporta *
 regras que existem na classe**. `Tests run: 0` com build verde é falha, não sucesso. Refaça
 essa conferência sempre que o Spring Boot, o Surefire ou o ArchUnit forem atualizados.
 
-Enquanto o projeto é construído etapa a etapa, dois relaxamentos temporários estão ativos e
-devem ser **removidos na Etapa 12**, quando todos os pacotes estiverem populados:
-
-| Relaxamento | Onde | Por quê |
-|-------------|------|---------|
-| `archRule.failOnEmptyShould=false` | `src/test/resources/archunit.properties` | pacote ainda vazio faria a regra falhar por ausência de código, não por violação |
-| `.withOptionalLayers(true)` | regra `layeredArchitecture()` | camada ainda vazia seria reportada como violação |
+**A suíte roda hoje sem nenhum relaxamento.** Os dois que existiram durante a construção —
+`archRule.failOnEmptyShould=false` e `.withOptionalLayers(true)` — foram removidos na Etapa
+12, quando todos os pacotes passaram a ter código. Não os reintroduza: com eles ativos, uma
+regra que deixe de casar com qualquer classe passa silenciosamente, e um pacote renomeado ou
+esvaziado deixa de ser detectado.
 
 ### Código gerado também é código
 

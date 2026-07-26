@@ -64,12 +64,12 @@ schema e uma API REST versionada e documentada.
 | 9 | Login, Security e JWT | 6, 8 | ✅ |
 | 10 | Services (regras de negócio) | 6, 7, 8, 9 | ✅ |
 | 11 | Controllers Versionados (Endpoints) | 8, 10 | ✅ |
-| 12 | Testes (JUnit + Mockito + ArchUnit) | 10, 11 | ⏳ |
+| 12 | Testes (JUnit + Mockito + ArchUnit) | 10, 11 | ✅ |
 | 13 | Documentação Swagger | 11 | ⏳ |
 | 14 | Entregáveis (Postman, README) | 11, 12, 13 | ⏳ |
 | 15 | Revisão, Evidências e Manutenção | 1–14 | ⏳ |
 
-**Progresso:** 11 de 15 etapas concluídas.
+**Progresso:** 12 de 15 etapas concluídas.
 **Legenda:** ✅ concluída · 🔄 em andamento · ⏳ pendente.
 
 ### Lógica do sequenciamento
@@ -1615,6 +1615,67 @@ resultam em `AuthenticationException`.
 usuário.
 
 Execução: `mvn test`.
+
+### Entrega da etapa ✅
+
+`mvn clean test` → **BUILD SUCCESS, 136 testes, 0 falhas**, sem aviso e sem relaxamento.
+
+| Classe de teste | Testes | Cobre |
+|-----------------|-------:|-------|
+| `ArchitectureTest` | 31 | regras de camada, contrato, nomenclatura, ciclos e segurança |
+| `UserServiceTest` | 24 | regras de negócio do cadastro |
+| `UserControllerTest` | 13 | **autorização** por posse e escopo administrativo |
+| `EmailTest` | 14 | invariante e normalização do e-mail |
+| `GlobalExceptionHandlerTest` | 13 | pares status/`type` do contrato de erro |
+| `ZipCodeTest` | 9 | invariante e normalização do CEP |
+| `JwtServiceTest` | 9 | emissão, expiração e adulteração de token |
+| `TextUtilsTest` / `ObjectUtilsTest` | 14 | normalização e pré-condições |
+| `UserSecurityTest` | 6 | `isSelf` |
+| `AuthenticationServiceTest` | 3 | emissão de token e falha de credencial |
+
+#### A lacuna que esta etapa fechou
+
+Até aqui, **posse e escopo administrativo só haviam sido conferidos à mão**, com a aplicação
+no ar. Afrouxar um `@PreAuthorize` passaria pelo build sem ninguém perceber — e falha de
+autorização é justamente o tipo de regressão que não pode depender de conferência manual.
+
+O `UserControllerTest` fecha isso com `@WebMvcTest` **importando a `SecurityConfig` real**, de
+modo que as regras de rota pública e protegida também sejam exercitadas. Só o filtro JWT é
+substituído por um repasse, porque o token já é coberto por `JwtServiceTest`. Cada teste de
+recusa afirma também que **o serviço não chegou a ser chamado** — um `403` que ainda assim
+executasse a operação seria pior que inútil.
+
+#### Três correções de infraestrutura de teste
+
+**1. `@EnableJpaAuditing` saiu da classe de aplicação.** Em `CorretoriaApplication`, a
+anotação é carregada por *qualquer* teste de fatia, inclusive os de web, que não têm entidades
+no contexto — e o Spring falha com `JPA metamodel must not be empty`. Movida para
+`JpaAuditingConfig`, ela só entra quando o contexto de persistência existe. Verificado depois
+da mudança: cadastro devolveu `201` com `createdAt` preenchido e `created_by = system`, o que
+prova que a auditoria continua ativa.
+
+**2. Mockito registrado como agente.** O aviso de *self-attaching* do inline-mock-maker
+deixará de funcionar em JDKs futuros. Resolvido na origem, com
+`-javaagent:"${org.mockito:mockito-core:jar}"` no Surefire — as aspas são necessárias porque o
+caminho do repositório local contém espaço, e sem elas a JVM nem inicializa.
+
+**3. Isolamento dos mocks entre testes.** Os beans mockados são compartilhados pelos testes do
+mesmo contexto, e uma verificação de "nunca chamado" enxergava a chamada do teste anterior —
+o diagnóstico foi o argumento registrado (`id=1`) não bater com o do teste em execução
+(`id=2`). Resolvido reiniciando os mocks no `@BeforeEach`.
+
+#### Relaxamentos removidos
+
+Os dois relaxamentos temporários introduzidos no scaffold saíram, como planejado:
+
+| Removido | Efeito |
+|----------|--------|
+| `archRule.failOnEmptyShould=false` | uma regra que deixe de casar com qualquer classe volta a **falhar**, denunciando pacote renomeado ou esvaziado |
+| `.withOptionalLayers(true)` | camada vazia volta a ser violação |
+| `.allowEmptyShould(true)` por regra | idem, agora que todos os pacotes têm código |
+
+A suíte roda hoje **sem nenhuma exceção**, e a skill de arquitetura foi atualizada para
+registrar que eles não devem voltar.
 
 ---
 

@@ -64,6 +64,7 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleIllegalArgument(
             IllegalArgumentException exception, HttpServletRequest request) {
 
+        log.debug("Argumento inválido em {}", request.getRequestURI(), exception);
         return build(HttpStatus.BAD_REQUEST, ProblemType.INVALID_FIELD_FORMAT,
                 exception.getMessage(), request);
     }

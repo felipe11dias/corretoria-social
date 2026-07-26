@@ -39,9 +39,6 @@ public class ArchitectureTest {
     @ArchTest
     static final ArchRule respeitaAArquiteturaEmCamadas = Architectures.layeredArchitecture()
             .consideringOnlyDependenciesInLayers()
-            // Camada vazia é legítima enquanto o projeto é construído etapa a etapa.
-            // Remover na Etapa 12, junto com archRule.failOnEmptyShould.
-            .withOptionalLayers(true)
             .layer("Apresentacao").definedBy(CONTROLLER)
             .layer("Negocio").definedBy(SERVICE)
             .layer("Persistencia").definedBy(REPOSITORY)
@@ -102,8 +99,7 @@ public class ArchitectureTest {
     static final ArchRule todoVoEhRecord = classes()
             .that().resideInAPackage(VO)
             .should().beRecords()
-            .as("Todo VO é um record imutável (Java 21): sem setter e sem construtor vazio")
-            .allowEmptyShould(true);
+            .as("Todo VO é um record imutável (Java 21): sem setter e sem construtor vazio");
 
     @ArchTest
     static final ArchRule controllerNaoRetornaEntity = noMethods()
@@ -125,8 +121,7 @@ public class ArchitectureTest {
             .and().areDeclaredInClassesThat().doNotHaveSimpleName("AuthResponse")
             .should().haveNameMatching("(?i).*(password|senha|hash|secret|token).*")
             .as("Nenhum Response expõe senha, hash ou token; a única exceção é AuthResponse, "
-                    + "que carrega o JWT emitido")
-            .allowEmptyShould(true);
+                    + "que carrega o JWT emitido");
 
     // ------------------------------------------------------------ persistência
 
@@ -135,8 +130,7 @@ public class ArchitectureTest {
             .that().resideInAPackage(REPOSITORY)
             .should().beInterfaces()
             .andShould().beAssignableTo(JpaRepository.class)
-            .as("Repository é interface estendendo JpaRepository, nunca classe concreta")
-            .allowEmptyShould(true);
+            .as("Repository é interface estendendo JpaRepository, nunca classe concreta");
 
     // ------------------------------------------------------------- transporte
 
@@ -159,8 +153,7 @@ public class ArchitectureTest {
                             method -> method.isAnnotatedWith(Transactional.class)))
             .should().resideInAPackage(SERVICE)
             .as("A fronteira transacional é o service: @Transactional em controller ou "
-                    + "repository indica regra de negócio na camada errada")
-            .allowEmptyShould(true);
+                    + "repository indica regra de negócio na camada errada");
 
     // ---------------------------------------------------------------- injeção
 
@@ -175,8 +168,7 @@ public class ArchitectureTest {
             .that().areDeclaredInClassesThat().resideInAnyPackage(SERVICE, CONTROLLER, SECURITY, MAPPER)
             .and().areNotStatic()
             .should().beFinal()
-            .as("Campos de dependência são private final, atribuídos no construtor")
-            .allowEmptyShould(true);
+            .as("Campos de dependência são private final, atribuídos no construtor");
 
     // ------------------------------------------------------------- utilitário
 
@@ -202,51 +194,44 @@ public class ArchitectureTest {
     static final ArchRule controllerNoPacoteController = classes()
             .that().haveSimpleNameEndingWith("Controller")
             .should().resideInAPackage(CONTROLLER)
-            .as("Classe terminada em Controller mora em com.corretoria.controller")
-            .allowEmptyShould(true);
+            .as("Classe terminada em Controller mora em com.corretoria.controller");
 
     @ArchTest
     static final ArchRule serviceNoPacoteService = classes()
             .that().haveSimpleNameEndingWith("Service")
             .should().resideInAnyPackage(SERVICE, SECURITY)
             .as("Classe terminada em Service mora em com.corretoria.service "
-                    + "(exceto os *UserDetailsService/JwtService, que são de segurança)")
-            .allowEmptyShould(true);
+                    + "(exceto os *UserDetailsService/JwtService, que são de segurança)");
 
     @ArchTest
     static final ArchRule repositoryNoPacoteRepository = classes()
             .that().haveSimpleNameEndingWith("Repository")
             .should().resideInAPackage(REPOSITORY)
-            .as("Classe terminada em Repository mora em com.corretoria.repository")
-            .allowEmptyShould(true);
+            .as("Classe terminada em Repository mora em com.corretoria.repository");
 
     @ArchTest
     static final ArchRule mapperNoPacoteMapper = classes()
             .that().haveSimpleNameEndingWith("Mapper")
             .should().resideInAPackage(MAPPER)
-            .as("Classe terminada em Mapper mora em com.corretoria.mapper")
-            .allowEmptyShould(true);
+            .as("Classe terminada em Mapper mora em com.corretoria.mapper");
 
     @ArchTest
     static final ArchRule entidadesNoPacoteEntity = classes()
             .that().areAnnotatedWith(Entity.class)
             .should().resideInAPackage(ENTITY)
-            .as("Entidade JPA mora em com.corretoria.entity")
-            .allowEmptyShould(true);
+            .as("Entidade JPA mora em com.corretoria.entity");
 
     @ArchTest
     static final ArchRule requestEResponseNoPacoteVo = classes()
             .that().haveSimpleNameEndingWith("Request").or().haveSimpleNameEndingWith("Response")
             .should().resideInAPackage(VO)
-            .as("VO de contrato mora em com.corretoria.vo.v1.request/response")
-            .allowEmptyShould(true);
+            .as("VO de contrato mora em com.corretoria.vo.v1.request/response");
 
     @ArchTest
     static final ArchRule excecaoNoPacoteException = classes()
             .that().haveSimpleNameEndingWith("Exception")
             .should().resideInAPackage("..exception..")
-            .as("Exceção de domínio mora em com.corretoria.exception")
-            .allowEmptyShould(true);
+            .as("Exceção de domínio mora em com.corretoria.exception");
 
     @ArchTest
     static final ArchRule semPrefixoIEmInterface = noClasses()
