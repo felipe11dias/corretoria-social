@@ -1,0 +1,614 @@
+{
+  "info": {
+    "name": "Corretoria",
+    "description": "Coleção da API do Corretoria.\n\nExecute de cima para baixo: os scripts de teste populam {{adminToken}}, {{userId}} e {{token}} automaticamente, e nenhuma requisição precisa ser preenchida à mão.\n\nA sequência é re-executável: o cadastro gera login e e-mail únicos a partir de {{runId}}, e o usuário criado é excluído no fim.\n\nCada requisição afirma o status esperado e, nos erros, o campo `type` do ProblemDetail — é o `type`, não o status, que distingue erros que compartilham o mesmo código.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "adminToken", "value": "" },
+    { "key": "token", "value": "" },
+    { "key": "userId", "value": "" },
+    { "key": "otherUserId", "value": "1" },
+    { "key": "runId", "value": "" },
+    { "key": "senhaAtual", "value": "senhaSegura123" },
+    { "key": "senhaNova", "value": "novaSenha456" }
+  ],
+  "item": [
+    {
+      "name": "Autenticação",
+      "item": [
+        {
+          "name": "Login admin (salva adminToken)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('devolve um token Bearer', () => {",
+                  "  pm.expect(body.token).to.be.a('string').and.not.empty;",
+                  "  pm.expect(body.type).to.eql('Bearer');",
+                  "});",
+                  "pm.collectionVariables.set('adminToken', body.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"admin.demo\",\n  \"password\": \"admin12345\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "login"] },
+            "description": "Administrador de demonstração, semeado pela migration V3. É a única via de obter ROLE_ADMIN, já que o autocadastro público o recusa."
+          }
+        },
+        {
+          "name": "Login corretor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('token emitido', () => pm.expect(pm.response.json().token).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"login\": \"corretor.demo\",\n  \"password\": \"corretor12345\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "login"] }
+          }
+        },
+        {
+          "name": "Login cliente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('token emitido', () => pm.expect(pm.response.json().token).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"login\": \"cliente.demo\",\n  \"password\": \"cliente12345\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "login"] }
+          }
+        },
+        {
+          "name": "Login inválido (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+                  "pm.test('type authentication-failed', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/authentication-failed'));",
+                  "pm.test('não revela se o login existe', () =>",
+                  "  pm.expect(pm.response.json().detail).to.eql('Login ou senha inválidos'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"login\": \"corretor.demo\",\n  \"password\": \"senha-errada\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "login"] },
+            "description": "A resposta é idêntica à de um login inexistente. Diferenciar os dois casos permitiria enumerar contas válidas."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Usuários",
+      "item": [
+        {
+          "name": "Cadastro de corretor (201, salva userId)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Login e e-mail únicos por execução, para a coleção poder rodar mais de uma vez.",
+                  "pm.collectionVariables.set('runId', String(Date.now()).slice(-8));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('cabeçalho Location presente', () =>",
+                  "  pm.expect(pm.response.headers.get('Location')).to.be.a('string'));",
+                  "const body = pm.response.json();",
+                  "pm.test('nunca devolve a senha', () => pm.expect(body).to.not.have.property('password'));",
+                  "pm.test('CEP normalizado para 8 dígitos', () =>",
+                  "  pm.expect(body.addresses[0].zipCode).to.eql('60000000'));",
+                  "pm.test('links HATEOAS presentes', () => {",
+                  "  pm.expect(body._links.self.href).to.be.a('string');",
+                  "  pm.expect(body._links.users.href).to.be.a('string');",
+                  "});",
+                  "pm.collectionVariables.set('userId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Corretor Postman {{runId}}\",\n  \"email\": \"corretor.{{runId}}@email.com\",\n  \"login\": \"corretor.{{runId}}\",\n  \"password\": \"{{senhaAtual}}\",\n  \"roles\": [\"ROLE_REALTOR\"],\n  \"addresses\": [\n    {\n      \"street\": \"Rua das Flores\",\n      \"number\": \"100\",\n      \"complement\": \"Sala 21\",\n      \"neighborhood\": \"Centro\",\n      \"city\": \"Fortaleza\",\n      \"state\": \"CE\",\n      \"zipCode\": \"60000-000\"\n    }\n  ]\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/users", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users"] },
+            "description": "Endpoint público. Observe que o CEP entra com máscara e é gravado com 8 dígitos — a normalização é do VO ZipCode."
+          }
+        },
+        {
+          "name": "Cadastro de cliente (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('papel ROLE_CUSTOMER concedido', () =>",
+                  "  pm.expect(pm.response.json().roles[0].name).to.eql('ROLE_CUSTOMER'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Cliente Postman {{runId}}\",\n  \"email\": \"cliente.{{runId}}@email.com\",\n  \"login\": \"cliente.{{runId}}\",\n  \"password\": \"{{senhaAtual}}\",\n  \"roles\": [\"ROLE_CUSTOMER\"],\n  \"addresses\": []\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/users", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users"] }
+          }
+        },
+        {
+          "name": "Login do usuário criado (salva token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('token', pm.response.json().token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"login\": \"corretor.{{runId}}\",\n  \"password\": \"{{senhaAtual}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "login"] }
+          }
+        },
+        {
+          "name": "Cadastro inválido: campos faltando (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('type validation-error', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/validation-error'));",
+                  "pm.test('agrega os erros por campo', () =>",
+                  "  pm.expect(Object.keys(pm.response.json().errors).length).to.be.above(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"\",\n  \"email\": \"\",\n  \"login\": \"\",\n  \"password\": \"\",\n  \"roles\": []\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/users", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users"] }
+          }
+        },
+        {
+          "name": "Cadastro inválido: e-mail duplicado só na caixa (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('type duplicate-resource', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/duplicate-resource'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sósia\",\n  \"email\": \"CORRETOR.{{runId}}@EMAIL.COM\",\n  \"login\": \"sosia.{{runId}}\",\n  \"password\": \"{{senhaAtual}}\",\n  \"roles\": [\"ROLE_REALTOR\"],\n  \"addresses\": []\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/users", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users"] },
+            "description": "O e-mail difere do já cadastrado apenas na caixa. O 409 é evidência da regra de negócio: o VO Email normaliza para minúsculas antes da checagem de unicidade. Sem isso, este cadastro passaria."
+          }
+        },
+        {
+          "name": "Cadastro solicitando ROLE_ADMIN: proibido (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type forbidden-operation', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/forbidden-operation'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Escalonamento\",\n  \"email\": \"escalonamento.{{runId}}@email.com\",\n  \"login\": \"escalonamento.{{runId}}\",\n  \"password\": \"{{senhaAtual}}\",\n  \"roles\": [\"ROLE_ADMIN\"],\n  \"addresses\": []\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/users", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users"] },
+            "description": "Tentativa de escalonamento de privilégio pelo endpoint público. Recusada antes de qualquer acesso ao banco."
+          }
+        },
+        {
+          "name": "Busca por nome via admin (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('envelope paginado com bloco page', () =>",
+                  "  pm.expect(pm.response.json().page).to.have.property('totalElements'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users?name=Corretor",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users"],
+              "query": [{ "key": "name", "value": "Corretor" }]
+            }
+          }
+        },
+        {
+          "name": "Busca por nome como usuário comum: negado (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type access-denied', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/access-denied'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users?name=Corretor",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users"],
+              "query": [{ "key": "name", "value": "Corretor" }]
+            },
+            "description": "Consultar a coleção de usuários é responsabilidade do administrador. Um corretor autenticado recebe 403."
+          }
+        },
+        {
+          "name": "Listar paginado via admin (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('links de navegação no envelope', () =>",
+                  "  pm.expect(pm.response.json()._links).to.have.property('self'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users?page=0&size=10&sort=name,asc",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "10" },
+                { "key": "sort", "value": "name,asc" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Consulta por id do próprio usuário (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('é o próprio usuário', () =>",
+                  "  pm.expect(String(pm.response.json().id)).to.eql(String(pm.collectionVariables.get('userId'))));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "{{userId}}"] }
+          }
+        },
+        {
+          "name": "Consulta por id de OUTRO usuário: negado (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type access-denied', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/access-denied'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/users/{{otherUserId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "{{otherUserId}}"] },
+            "description": "A barreira contra IDOR: um token válido não basta para ler o cadastro de outra pessoa trocando o id da URL."
+          }
+        },
+        {
+          "name": "Consulta por id via admin (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/users/{{otherUserId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "{{otherUserId}}"] },
+            "description": "Mesmo recurso da requisição anterior. O administrador acessa qualquer cadastro."
+          }
+        },
+        {
+          "name": "Atualização do próprio cadastro (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('nome atualizado', () =>",
+                  "  pm.expect(pm.response.json().name).to.include('Atualizado'));",
+                  "pm.test('e-mail e login permanecem os do cadastro', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.email).to.eql('corretor.' + pm.collectionVariables.get('runId') + '@email.com');",
+                  "  pm.expect(body.login).to.eql('corretor.' + pm.collectionVariables.get('runId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Corretor Postman {{runId}} Atualizado\",\n  \"addresses\": [\n    {\n      \"street\": \"Avenida Dom Luis\",\n      \"number\": \"500\",\n      \"complement\": null,\n      \"neighborhood\": \"Meireles\",\n      \"city\": \"Fortaleza\",\n      \"state\": \"CE\",\n      \"zipCode\": \"60160-230\"\n    }\n  ]\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "{{userId}}"] },
+            "description": "A atualização altera apenas nome e endereços. E-mail e login são imutáveis após o cadastro, assim como a senha e os papéis."
+          }
+        },
+        {
+          "name": "Atualização de id inexistente via admin (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+                  "pm.test('type resource-not-found', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/resource-not-found'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Fantasma\",\n  \"addresses\": []\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/users/999999", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "999999"] }
+          }
+        },
+        {
+          "name": "Troca de senha do próprio: sucesso (204)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content', () => pm.response.to.have.status(204));",
+                  "pm.test('sem corpo', () => pm.expect(pm.response.text()).to.be.empty);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{senhaAtual}}\",\n  \"newPassword\": \"{{senhaNova}}\",\n  \"confirmPassword\": \"{{senhaNova}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/users/{{userId}}/password", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "{{userId}}", "password"] },
+            "description": "Exige a senha atual mesmo com o usuário já autenticado: um token vazado não deve bastar para tomar a conta."
+          }
+        },
+        {
+          "name": "Login com a senha NOVA: prova do efeito (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK com a senha nova', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('token', pm.response.json().token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"login\": \"corretor.{{runId}}\",\n  \"password\": \"{{senhaNova}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "login"] },
+            "description": "O 204 anterior prova que a requisição foi aceita, não que a senha mudou. Este login é a evidência do efeito."
+          }
+        },
+        {
+          "name": "Troca de senha com senha atual incorreta (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('type invalid-password', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/invalid-password'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"senha-que-nao-e-a-atual\",\n  \"newPassword\": \"outraSenha789\",\n  \"confirmPassword\": \"outraSenha789\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/users/{{userId}}/password", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "{{userId}}", "password"] }
+          }
+        },
+        {
+          "name": "Exclusão do próprio cadastro (204)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('204 No Content', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "{{userId}}"] },
+            "description": "Remove também endereços e vínculos de papel, por cascade."
+          }
+        },
+        {
+          "name": "Consulta ao usuário excluído: prova do efeito (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+                  "pm.test('type resource-not-found', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/resource-not-found'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "{{userId}}"] },
+            "description": "Consultado pelo administrador, para provar que o registro sumiu de fato — e não apenas que o dono perdeu o acesso."
+          }
+        }
+      ]
+    }
+  ]
+}

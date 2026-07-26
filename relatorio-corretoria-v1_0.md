@@ -66,10 +66,10 @@ schema e uma API REST versionada e documentada.
 | 11 | Controllers Versionados (Endpoints) | 8, 10 | ✅ |
 | 12 | Testes (JUnit + Mockito + ArchUnit) | 10, 11 | ✅ |
 | 13 | Documentação Swagger | 11 | ✅ |
-| 14 | Entregáveis (Postman, README) | 11, 12, 13 | ⏳ |
+| 14 | Entregáveis (Postman, README) | 11, 12, 13 | ✅ |
 | 15 | Revisão, Evidências e Manutenção | 1–14 | ⏳ |
 
-**Progresso:** 13 de 15 etapas concluídas.
+**Progresso:** 14 de 15 etapas concluídas.
 **Legenda:** ✅ concluída · 🔄 em andamento · ⏳ pendente.
 
 ### Lógica do sequenciamento
@@ -1797,6 +1797,47 @@ Arquivo `corretoria/README.md` com: contexto e papéis, stack, pré-requisitos, 
 de execução com Docker Compose, variáveis de ambiente, fluxo de autenticação, tabela de
 endpoints, acesso ao Swagger, uso da coleção Postman, execução dos testes e as três skills de
 governança.
+
+### Entrega da etapa ✅
+
+`postman/Corretoria.postman_collection.json` (v2.1, **23 requisições**) e `README.md` criados.
+
+#### Coleção re-executável
+
+O plano não previa isso, e sem ele a coleção só funcionaria uma vez: na segunda execução o
+cadastro colidiria com o e-mail e o login da primeira, devolvendo `409`, e todo o resto da
+sequência cairia junto. Um *pre-request script* gera `{{runId}}` a partir do relógio, e login
+e e-mail passam a ser únicos por execução; o usuário criado é excluído ao final.
+
+#### Cada requisição afirma o `type`, não só o status
+
+Os scripts de teste verificam o `type` do ProblemDetail nos erros. Conferir apenas o status
+deixaria passar um `403` de posse no lugar de um `403` de operação proibida — que é
+exatamente a distinção que o RFC 7807 existe para permitir.
+
+Quatro requisições são de **efeito**, não de resposta: o login com a senha nova após a troca,
+a consulta ao id excluído, a verificação de que o CEP foi gravado com 8 dígitos e a de que
+e-mail e login permaneceram após o `PUT`.
+
+#### Validação executada, e como
+
+O gate 15.1 pede a coleção executando de ponta a ponta no *Runner*. **Newman não está
+disponível nesta máquina** — não há Node, npm nem jq instalados —, então a verificação foi
+feita de duas formas complementares:
+
+| Verificação | Resultado |
+|-------------|-----------|
+| Estrutura do JSON | válido no schema v2.1; 2 pastas, 23 requisições, 8 variáveis |
+| Execução da mesma sequência via `curl`, na mesma ordem, contra a aplicação no ar | **23 de 23 conforme, 0 divergências** |
+
+A execução confirmou, entre outros: `409` no e-mail divergindo só na caixa, `403` no
+autocadastro pedindo `ROLE_ADMIN`, `403` nas três tentativas de acessar recurso alheio, `200`
+no login com a senha nova, `404` no id excluído, CEP gravado como `60000000` e e-mail
+inalterado após o `PUT`.
+
+> Fica registrado que o *Runner* do Postman em si não foi executado. Instalar o Node e rodar
+> `newman run postman/Corretoria.postman_collection.json` reproduz a mesma sequência com os
+> scripts de teste reais — que é o que a Etapa 15 deve fazer para a evidência final.
 
 ---
 
