@@ -1,0 +1,16 @@
+==============================================================================
+ P2  —  senha-atual-incorreta-400
+==============================================================================
+
+REQUISIÇÃO
+  PATCH http://localhost:8080/api/v1/users/4/password
+  Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJ...(truncado)
+
+CORPO ENVIADO
+  {"currentPassword":"errada123","newPassword":"novaSenha456","confirmPassword":"novaSenha456"}
+
+RESPOSTA
+  Status HTTP: 400   (esperado: 400)
+
+  Corpo:
+  {"type":"https://api.corretoria.app/problems/invalid-password","title":"Senha inválida","status":400,"detail":"A senha atual está incorreta","instance":"/api/v1/users/4/password","timestamp":"2026-07-26T15:07:01.526532974Z"}

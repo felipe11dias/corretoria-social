@@ -1,0 +1,141 @@
+==============================================================================
+ Evidências complementares — 15.4
+==============================================================================
+
+## Docker Compose — pilha subida do zero
+
+  NAME             IMAGE                  STATUS
+  corretoria-app   corretoria-api:1.0.0   Up 2 minutes
+  corretoria-db    postgres:16            Up 2 minutes (healthy)
+
+## Flyway — migrations em base limpa
+
+  1 | 1 | create initial schema | t
+  2 | 2 | seed demo users | t
+  3 | 3 | seed admin user | t
+  4 | 4 | create password reset tokens | t
+  5 | 5 | add audit columns | t
+
+## Hibernate ddl-auto: validate — boot sem erro de schema
+
+  corretoria-app  | 2026-07-26T15:05:02.810Z  INFO 1 --- [corretoria] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8080 (http) with context path '/'
+  corretoria-app  | 2026-07-26T15:05:02.833Z  INFO 1 --- [corretoria] [           main] com.corretoria.CorretoriaApplication     : Started CorretoriaApplication in 14.797 seconds (process running for 15.883)
+
+## Actuator
+
+  GET /actuator/health -> {"status":"UP"}
+
+## Schema OpenAPI
+
+  GET /v3/api-docs -> HTTP 200
+  Esquema de segurança declarado:
+    "securitySchemes":{"bearerAuth":{"type":"http","description":"Informe apenas o token; o prefixo Bearer é acrescentado pelo Swagger UI.","in":"header","scheme":"bearer","bearerFormat":"JWT"}}
+
+  Operações e exigência de token:
+    POST   /api/v1/auth/login          público
+    POST   /api/v1/users               público
+    GET    /api/v1/users               requer Bearer
+    GET    /api/v1/users/{id}          requer Bearer
+    PUT    /api/v1/users/{id}          requer Bearer
+    PATCH  /api/v1/users/{id}/password requer Bearer
+    DELETE /api/v1/users/{id}          requer Bearer
+
+## Swagger UI
+
+  GET /swagger-ui.html -> HTTP 200
+  Endpoint protegido executado com o token do Authorize -> HTTP 200
+
+## Seeds — login com os três usuários de demonstração
+
+  corretor.demo    -> HTTP 200
+  cliente.demo     -> HTTP 200
+  admin.demo       -> HTTP 200
+
+## Testes — saída de mvn clean verify
+
+  Running com.corretoria.controller.UserControllerTest
+  Running com.corretoria.controller.UserControllerTest$EscopoAdministrativo
+  Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 7.515 s -- in com.corretoria.controller.UserControllerTest$EscopoAdministrativo
+  Running com.corretoria.controller.UserControllerTest$PorPosse
+  Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.381 s -- in com.corretoria.controller.UserControllerTest$PorPosse
+  Running com.corretoria.controller.UserControllerTest$SemAutenticacao
+  Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.193 s -- in com.corretoria.controller.UserControllerTest$SemAutenticacao
+  Running com.corretoria.exception.GlobalExceptionHandlerTest
+  Running com.corretoria.exception.GlobalExceptionHandlerTest$CorpoDaResposta
+  Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.123 s -- in com.corretoria.exception.GlobalExceptionHandlerTest$CorpoDaResposta
+  Running com.corretoria.exception.GlobalExceptionHandlerTest$Autenticacao
+  Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.009 s -- in com.corretoria.exception.GlobalExceptionHandlerTest$Autenticacao
+  Running com.corretoria.exception.GlobalExceptionHandlerTest$DoisForbidden
+  Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s -- in com.corretoria.exception.GlobalExceptionHandlerTest$DoisForbidden
+  Running com.corretoria.exception.GlobalExceptionHandlerTest$MapeamentoDeStatusEType
+  Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.032 s -- in com.corretoria.exception.GlobalExceptionHandlerTest$MapeamentoDeStatusEType
+  Running com.corretoria.security.JwtServiceTest
+  Running com.corretoria.security.JwtServiceTest$Validacao
+  Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.195 s -- in com.corretoria.security.JwtServiceTest$Validacao
+  Running com.corretoria.security.JwtServiceTest$Emissao
+  Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.020 s -- in com.corretoria.security.JwtServiceTest$Emissao
+  Running com.corretoria.security.UserSecurityTest
+  Running com.corretoria.security.UserSecurityTest$IsSelf
+  Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.328 s -- in com.corretoria.security.UserSecurityTest$IsSelf
+  Running com.corretoria.service.AuthenticationServiceTest
+  Running com.corretoria.service.AuthenticationServiceTest$Authenticate
+  Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.114 s -- in com.corretoria.service.AuthenticationServiceTest$Authenticate
+  Running com.corretoria.service.UserServiceTest
+  Running com.corretoria.service.UserServiceTest$ConsultasEExclusao
+  Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.316 s -- in com.corretoria.service.UserServiceTest$ConsultasEExclusao
+  Running com.corretoria.service.UserServiceTest$ChangePassword
+  Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.014 s -- in com.corretoria.service.UserServiceTest$ChangePassword
+  Running com.corretoria.service.UserServiceTest$Update
+  Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.033 s -- in com.corretoria.service.UserServiceTest$Update
+  Running com.corretoria.service.UserServiceTest$Register
+  Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.046 s -- in com.corretoria.service.UserServiceTest$Register
+  Running com.corretoria.util.ObjectUtilsTest
+  Running com.corretoria.util.ObjectUtilsTest$RequireNonBlank
+  Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in com.corretoria.util.ObjectUtilsTest$RequireNonBlank
+  Running com.corretoria.util.ObjectUtilsTest$IsEmpty
+  Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in com.corretoria.util.ObjectUtilsTest$IsEmpty
+  Running com.corretoria.util.ObjectUtilsTest$IsBlank
+  Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.016 s -- in com.corretoria.util.ObjectUtilsTest$IsBlank
+  Running com.corretoria.util.TextUtilsTest
+  Running com.corretoria.util.TextUtilsTest$DigitsOnly
+  Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s -- in com.corretoria.util.TextUtilsTest$DigitsOnly
+  Running com.corretoria.util.TextUtilsTest$RemoveAccents
+  Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.010 s -- in com.corretoria.util.TextUtilsTest$RemoveAccents
+  Running com.corretoria.util.TextUtilsTest$Normalize
+  Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s -- in com.corretoria.util.TextUtilsTest$Normalize
+  Running com.corretoria.util.TextUtilsTest$TrimToEmpty
+  Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.007 s -- in com.corretoria.util.TextUtilsTest$TrimToEmpty
+  Running com.corretoria.vo.shared.EmailTest
+  Running com.corretoria.vo.shared.EmailTest$Invariante
+  Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.066 s -- in com.corretoria.vo.shared.EmailTest$Invariante
+  Running com.corretoria.vo.shared.EmailTest$Normalizacao
+  Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s -- in com.corretoria.vo.shared.EmailTest$Normalizacao
+  Running com.corretoria.vo.shared.ZipCodeTest
+  Running com.corretoria.vo.shared.ZipCodeTest$Invariante
+  Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.017 s -- in com.corretoria.vo.shared.ZipCodeTest$Invariante
+  Running com.corretoria.vo.shared.ZipCodeTest$Normalizacao
+  Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.010 s -- in com.corretoria.vo.shared.ZipCodeTest$Normalizacao
+  Running com.corretoria.architecture.ArchitectureTest
+  Tests run: 32, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.068 s -- in com.corretoria.architecture.ArchitectureTest
+  Tests run: 136, Failures: 0, Errors: 0, Skipped: 0
+  BUILD SUCCESS
+
+## Swagger UI — verificação de renderização (árvore de acessibilidade da página)
+
+  Título ............. 'Corretoria API 1.0.0 OAS 3.1'
+  Tags ............... 'Autenticação — Emissão de token JWT'
+                       'Usuários — Cadastro e gestão de usuários'
+  Botão Authorize .... presente
+  Tabela de credenciais de demonstração renderizada na descrição
+
+  Cadeado por operação (o que a página realmente exibe):
+    POST   /api/v1/auth/login          sem cadeado  (público)
+    POST   /api/v1/users               sem cadeado  (público)
+    GET    /api/v1/users               com cadeado
+    GET    /api/v1/users/{id}          com cadeado
+    PUT    /api/v1/users/{id}          com cadeado
+    PATCH  /api/v1/users/{id}/password com cadeado
+    DELETE /api/v1/users/{id}          com cadeado
+
+  HTTP 200 prova que a rota responde; esta verificação prova que a interface monta
+  o contrato e que a exigência de token aparece onde deve.

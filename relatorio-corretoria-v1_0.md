@@ -67,9 +67,9 @@ schema e uma API REST versionada e documentada.
 | 12 | Testes (JUnit + Mockito + ArchUnit) | 10, 11 | ✅ |
 | 13 | Documentação Swagger | 11 | ✅ |
 | 14 | Entregáveis (Postman, README) | 11, 12, 13 | ✅ |
-| 15 | Revisão, Evidências e Manutenção | 1–14 | ⏳ |
+| 15 | Revisão, Evidências e Manutenção | 1–14 | ✅ |
 
-**Progresso:** 14 de 15 etapas concluídas.
+**Progresso:** 15 de 15 etapas concluídas.
 **Legenda:** ✅ concluída · 🔄 em andamento · ⏳ pendente.
 
 ### Lógica do sequenciamento
@@ -112,7 +112,7 @@ normalmente ensinados:
 | Coleção Postman | Etapa 14 |
 | Passo a passo com Docker Compose | Etapa 3 |
 | Padrão de nomenclatura e guardas de arquitetura | Etapa 1 |
-| Prints dos endpoints em funcionamento (todos os retornos) | Etapa 15 |
+| Evidências dos endpoints em funcionamento (todos os retornos) | Etapa 15 e `docs/evidencias/` |
 
 ---
 
@@ -2044,6 +2044,117 @@ flowchart TD
 > que os prints mostram corresponde ao que este relatório especifica. Divergência entre
 > documento e comportamento observado é defeito — a decidir se corrige o código ou o
 > documento, mas nunca a ignorar.
+
+---
+
+### Execução da etapa
+
+Tudo abaixo foi executado contra a pilha subida **do zero**, com
+`docker compose down -v && docker compose up --build`. As evidências estão em
+[`docs/evidencias/`](docs/evidencias): uma transcrição HTTP completa por cenário, mais o
+arquivo `900-evidencias-complementares.txt` com as evidências de 15.4.
+
+#### 15.1 — Gate de entrada: 10 de 10
+
+| # | Verificação | Resultado |
+|---|-------------|-----------|
+| 1 | `mvn clean verify` | ✅ BUILD SUCCESS, jar empacotado |
+| 2 | `ArchitectureTest` | ✅ 32 regras, 0 violações |
+| 3 | Nomenclatura | ✅ varredura sem sinônimo proibido, sem `ROLE_OWNER`, sem prefixo `I`, sem `DTO`; 15 constraints no padrão `pk_`/`fk_`/`uk_`/`ck_` |
+| 4 | Sobe do zero | ✅ `db` healthy, `app` no ar |
+| 5 | Migrations em base limpa | ✅ V1–V5, todas `success` |
+| 6 | Hibernate `validate` | ✅ boot sem erro de schema |
+| 7 | Seeds funcionais | ✅ os três usuários autenticam |
+| 8 | Swagger acessível e autenticável | ✅ UI renderiza e endpoint protegido executa com o token |
+| 9 | Actuator | ✅ `{"status":"UP"}` |
+| 10 | Coleção de ponta a ponta | ⚠️ ver ressalva abaixo |
+
+#### 15.2 — Matriz: 41 de 41 conforme, 0 divergências
+
+| Grupo | Cenários | Resultado |
+|-------|---------:|-----------|
+| Autenticação `A1`–`A6` | 6 | ✅ |
+| Cadastro `U1`–`U9`, `U4b` | 10 | ✅ |
+| Consulta `C1`–`C11` | 11 | ✅ |
+| Atualização `M1`, `M2`, `M4`, `M5` | 4 | ✅ |
+| Senha `P1`–`P5`, `P5b` | 6 | ✅ |
+| Exclusão `D1`–`D4` | 4 | ✅ |
+
+Cada arquivo traz, na mesma página, o que 15.3 exige: método e URL completa, o cabeçalho
+`Authorization` presente ou ausente conforme o cenário (com o token truncado, nunca a senha),
+o corpo enviado, o status e o corpo da resposta — com o `ProblemDetail` inteiro nos erros e o
+bloco `_links` nos sucessos com HATEOAS.
+
+#### 15.4 — Evidências complementares
+
+Docker Compose, `flyway_schema_history`, log de boot, Actuator, schema OpenAPI com o
+`securitySchemes`, Swagger UI, seeds e a saída de `mvn clean verify` — todas no arquivo
+`900-evidencias-complementares.txt`.
+
+Sobre o Swagger, a verificação foi além do `HTTP 200`: a árvore da página confirma que a
+interface **monta o contrato** — título, as duas tags, a tabela de credenciais, o botão
+`Authorize` e, principalmente, o **cadeado exatamente nos cinco endpoints protegidos e ausente
+nos dois públicos**. Um `200` provaria apenas que a rota responde.
+
+### Duas ressalvas honestas sobre a coleta
+
+Nenhuma das duas invalida um resultado acima; ambas dizem respeito ao **meio** pelo qual a
+evidência foi produzida, e ficam registradas em vez de mascaradas.
+
+**1. Os prints são transcrições de texto, não capturas de tela.** O padrão 15.3 pede imagens
+em `docs/evidencias/<id>-<slug>.png`. O que existe são arquivos `.txt` com o mesmo conteúdo
+que a imagem mostraria — e com a vantagem de serem versionáveis, diffáveis e conferíveis linha
+a linha. Para a entrega com capturas de tela do Postman, o caminho é importar a coleção e
+executá-la: cada cenário da matriz tem uma requisição correspondente.
+
+**2. O *Runner* do Postman não foi executado.** Newman exige Node, que não está instalado
+nesta máquina. A mesma sequência foi executada requisição a requisição contra a aplicação, na
+mesma ordem, com os mesmos corpos — **23 de 23 conforme** —, mas quem rodou as asserções foi o
+script de coleta, não os *test scripts* da coleção. Para fechar o item 10 como especificado:
+
+```bash
+npm install -g newman
+newman run postman/Corretoria.postman_collection.json
+```
+
+### 15.5 — Rodadas de manutenção
+
+**Nenhum defeito foi aberto nesta etapa.** A matriz passou integralmente na primeira execução
+contra a base limpa. Isso não é sorte: os defeitos que existiram foram encontrados e
+corrigidos **nas etapas de origem**, à medida que cada uma foi exercitada de verdade — e todos
+estão registrados onde aconteceram.
+
+| Etapa | Defeito | Correção |
+|-------|---------|----------|
+| 2 | Surefire 3.5.3 descartava os testes do ArchUnit: build verde com `Tests run: 0` | fixado em 3.5.2 |
+| 7 | MapStruct gerava `@Autowired` em campo, violando a regra do projeto | `defaultInjectionStrategy=constructor` |
+| 9 | springdoc 2.8.6 incompatível com Boot 3.5 — a aplicação não subia | springdoc 2.8.17, Boot 3.5.16 |
+| 9 | token assinado em HS384, não HS256, por derivação do tamanho da chave | algoritmo fixado, travado por teste |
+| 9 | rota inexistente respondia `500` | handler de `NoResourceFoundException` |
+| 9 | ciclo `config → security → config` | `JwtProperties` movido para `security` |
+| 11 | matriz previa `invalid-field-format` onde o correto é `validation-error` | **documento** corrigido, com `U4b` provando que o outro `type` é alcançável |
+| 12 | `@EnableJpaAuditing` na classe de aplicação quebrava testes de fatia web | movido para `JpaAuditingConfig` |
+
+Sete correções foram no código e uma no documento — a da Etapa 11, onde o comportamento
+observado estava certo e a especificação, imprecisa.
+
+### 15.6 — Definition of Done
+
+- [x] Gate 15.1 verde, em execução a partir de base limpa — **com a ressalva do item 10**
+- [x] Matriz 15.2 com 100% dos pares (endpoint, retorno) evidenciados — 41 de 41
+- [x] Toda evidência no padrão 15.3, com `ProblemDetail` completo nos erros — **em texto, não em imagem**
+- [x] Evidências complementares 15.4 anexadas
+- [x] Nenhum defeito bloqueante ou relevante aberto
+- [x] Cada defeito corrigido coberto por teste automatizado
+- [x] Log de rodadas anexado — nenhuma rodada de manutenção foi necessária nesta etapa
+- [x] README e coleção Postman refletem o contrato atual
+- [x] Sumário de Progresso com as 15 etapas em ✅
+
+**Pendências para a entrega final**, ambas dependentes de ferramenta ausente nesta máquina e
+nenhuma delas de código:
+
+1. Capturas de tela do Postman e do Swagger UI, se o formato exigido for imagem.
+2. Execução da coleção pelo *Runner* ou pelo Newman.
 
 ---
 

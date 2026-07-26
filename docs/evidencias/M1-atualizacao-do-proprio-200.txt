@@ -1,0 +1,16 @@
+==============================================================================
+ M1  —  atualizacao-do-proprio-200
+==============================================================================
+
+REQUISIÇÃO
+  PUT http://localhost:8080/api/v1/users/4
+  Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJ...(truncado)
+
+CORPO ENVIADO
+  {"name":"Corretor Evidencia 5078414 Atualizado","addresses":[{"street":"Avenida Dom Luis","number":"500","complement":null,"neighborhood":"Meireles","city":"Fortaleza","state":"CE","zipCode":"60160-230"}]}
+
+RESPOSTA
+  Status HTTP: 200   (esperado: 200)
+
+  Corpo:
+  {"id":4,"name":"Corretor Evidencia 5078414 Atualizado","email":"corretor.5078414@email.com","login":"corretor.5078414","roles":[{"id":2,"name":"ROLE_REALTOR"}],"addresses":[{"id":4,"street":"Avenida Dom Luis","number":"500","complement":null,"neighborhood":"Meireles","city":"Fortaleza","state":"CE","zipCode":"60160230"}],"createdAt":"2026-07-26T15:06:56.792051","lastUpdatedAt":"2026-07-26T15:06:56.792051","_links":{"self":{"href":"http://localhost:8080/api/v1/users/4"},"users":{"href":"http://localhost:8080/api/v1/users"}}}

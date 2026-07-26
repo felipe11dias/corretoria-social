@@ -1,0 +1,16 @@
+==============================================================================
+ P4  —  senha-de-outro-usuario-403
+==============================================================================
+
+REQUISIÇÃO
+  PATCH http://localhost:8080/api/v1/users/1/password
+  Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJ...(truncado)
+
+CORPO ENVIADO
+  {"currentPassword":"corretor12345","newPassword":"novaSenha456","confirmPassword":"novaSenha456"}
+
+RESPOSTA
+  Status HTTP: 403   (esperado: 403)
+
+  Corpo:
+  {"type":"https://api.corretoria.app/problems/access-denied","title":"Acesso negado","status":403,"detail":"Você não tem permissão para acessar este recurso","instance":"/api/v1/users/1/password","timestamp":"2026-07-26T15:07:02.068223357Z"}

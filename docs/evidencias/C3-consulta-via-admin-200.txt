@@ -1,0 +1,13 @@
+==============================================================================
+ C3  —  consulta-via-admin-200
+==============================================================================
+
+REQUISIÇÃO
+  GET http://localhost:8080/api/v1/users/1
+  Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJ...(truncado)
+
+RESPOSTA
+  Status HTTP: 200   (esperado: 200)
+
+  Corpo:
+  {"id":1,"name":"Corretor Demonstracao","email":"corretor.demo@corretoria.app","login":"corretor.demo","roles":[{"id":2,"name":"ROLE_REALTOR"}],"addresses":[{"id":1,"street":"Avenida Dom Luis","number":"500","complement":"Sala 1201","neighborhood":"Meireles","city":"Fortaleza","state":"CE","zipCode":"60160230"}],"createdAt":"2026-07-26T15:04:56.410372","lastUpdatedAt":"2026-07-26T15:04:56.410372","_links":{"self":{"href":"http://localhost:8080/api/v1/users/1"},"users":{"href":"http://localhost:8080/api/v1/users"}}}

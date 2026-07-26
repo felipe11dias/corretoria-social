@@ -1,0 +1,16 @@
+==============================================================================
+ U2  —  cadastro-cliente-201
+==============================================================================
+
+REQUISIÇÃO
+  POST http://localhost:8080/api/v1/users
+  Authorization: (ausente)
+
+CORPO ENVIADO
+  {"name":"Cliente Evidencia 5078414","email":"cliente.5078414@email.com","login":"cliente.5078414","password":"senhaSegura123","roles":["ROLE_CUSTOMER"],"addresses":[]}
+
+RESPOSTA
+  Status HTTP: 201   (esperado: 201)
+
+  Corpo:
+  {"id":5,"name":"Cliente Evidencia 5078414","email":"cliente.5078414@email.com","login":"cliente.5078414","roles":[{"id":3,"name":"ROLE_CUSTOMER"}],"addresses":[],"createdAt":"2026-07-26T15:06:57.13349625","lastUpdatedAt":"2026-07-26T15:06:57.13349625","_links":{"self":{"href":"http://localhost:8080/api/v1/users/5"},"users":{"href":"http://localhost:8080/api/v1/users"}}}

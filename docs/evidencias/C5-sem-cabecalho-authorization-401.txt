@@ -1,0 +1,13 @@
+==============================================================================
+ C5  —  sem-cabecalho-authorization-401
+==============================================================================
+
+REQUISIÇÃO
+  GET http://localhost:8080/api/v1/users/4
+  Authorization: (ausente)
+
+RESPOSTA
+  Status HTTP: 401   (esperado: 401)
+
+  Corpo:
+  {"type":"https://api.corretoria.app/problems/missing-token","title":"Não autenticado","status":401,"detail":"Autenticação necessária: envie o cabeçalho Authorization: Bearer <token>","instance":"/api/v1/users/4","timestamp":"2026-07-26T15:06:59.669113744Z"}

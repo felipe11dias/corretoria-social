@@ -1,0 +1,14 @@
+==============================================================================
+ D1  —  exclusao-do-proprio-204
+==============================================================================
+
+REQUISIÇÃO
+  DELETE http://localhost:8080/api/v1/users/4
+  Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJ...(truncado)
+
+RESPOSTA
+  Status HTTP: 204   (esperado: 204)
+
+  Corpo:
+  (vazio)
+

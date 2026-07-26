@@ -1,0 +1,13 @@
+==============================================================================
+ C10  —  busca-sem-resultado-200
+==============================================================================
+
+REQUISIÇÃO
+  GET http://localhost:8080/api/v1/users?name=zzzzzzzz
+  Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJ...(truncado)
+
+RESPOSTA
+  Status HTTP: 200   (esperado: 200)
+
+  Corpo:
+  {"_links":{"self":{"href":"http://localhost:8080/api/v1/users?name=zzzzzzzz&page=0&size=10&sort=name,asc"}},"page":{"size":10,"totalElements":0,"totalPages":0,"number":0}}

@@ -1,0 +1,16 @@
+==============================================================================
+ P5  —  login-com-a-senha-nova-200
+==============================================================================
+
+REQUISIÇÃO
+  POST http://localhost:8080/api/v1/auth/login
+  Authorization: (ausente)
+
+CORPO ENVIADO
+  {"login":"corretor.5078414","password":"novaSenha456"}
+
+RESPOSTA
+  Status HTTP: 200   (esperado: 200)
+
+  Corpo:
+  {"token":"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJjb3JyZXRvci41MDc4NDE0IiwiaWF0IjoxNzg1MDc4NDIyLCJleHAiOjE3ODUwODIwMjJ9.apUu4nMw8zfSB31Pch7e579C-llwEptZlkZ88-f1G0Y","type":"Bearer","expiresIn":3600000}

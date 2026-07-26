@@ -1,0 +1,16 @@
+==============================================================================
+ U1  —  cadastro-corretor-201
+==============================================================================
+
+REQUISIÇÃO
+  POST http://localhost:8080/api/v1/users
+  Authorization: (ausente)
+
+CORPO ENVIADO
+  {"name":"Corretor Evidencia 5078414","email":"corretor.5078414@email.com","login":"corretor.5078414","password":"senhaSegura123","roles":["ROLE_REALTOR"],"addresses":[{"street":"Rua das Flores","number":"100","complement":"Sala 21","neighborhood":"Centro","city":"Fortaleza","state":"CE","zipCode":"60000-000"}]}
+
+RESPOSTA
+  Status HTTP: 201   (esperado: 201)
+
+  Corpo:
+  {"id":4,"name":"Corretor Evidencia 5078414","email":"corretor.5078414@email.com","login":"corretor.5078414","roles":[{"id":2,"name":"ROLE_REALTOR"}],"addresses":[{"id":3,"street":"Rua das Flores","number":"100","complement":"Sala 21","neighborhood":"Centro","city":"Fortaleza","state":"CE","zipCode":"60000000"}],"createdAt":"2026-07-26T15:06:56.7920509","lastUpdatedAt":"2026-07-26T15:06:56.7920509","_links":{"self":{"href":"http://localhost:8080/api/v1/users/4"},"users":{"href":"http://localhost:8080/api/v1/users"}}}

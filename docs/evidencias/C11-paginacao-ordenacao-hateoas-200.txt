@@ -1,0 +1,13 @@
+==============================================================================
+ C11  —  paginacao-ordenacao-hateoas-200
+==============================================================================
+
+REQUISIÇÃO
+  GET http://localhost:8080/api/v1/users?page=0&size=2&sort=name,asc
+  Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJ...(truncado)
+
+RESPOSTA
+  Status HTTP: 200   (esperado: 200)
+
+  Corpo:
+  {"_embedded":{"userResponseList":[{"id":3,"name":"Administrador Demonstracao","email":"admin.demo@corretoria.app","login":"admin.demo","roles":[{"id":1,"name":"ROLE_ADMIN"}],"addresses":[],"createdAt":"2026-07-26T15:04:56.410372","lastUpdatedAt":"2026-07-26T15:04:56.410372","_links":{"self":{"href":"http://localhost:8080/api/v1/users/3"},"users":{"href":"http://localhost:8080/api/v1/users"}}},{"id":2,"name":"Cliente Demonstracao","email":"cliente.demo@corretoria.app","login":"cliente.demo","roles":[{"id":3,"name":"ROLE_CUSTOMER"}],"addresses":[{"id":2,"street":"Rua Barao de Studart","number":"1980","complement":null,"neighborhood":"Aldeota","city":"Fortaleza","state":"CE","zipCode":"60120024"}],"createdAt":"2026-07-26T15:04:56.410372","lastUpdatedAt":"2026-07-26T15:04:56.410372","_links":{"self":{"href":"http://localhost:8080/api/v1/users/2"},"users":{"href":"http://localhost:8080/api/v1/users"}}}]},"_links":{"first":{"href":"http://localhost:8080/api/v1/users?page=0&size=2&sort=name,asc"},"self":{"href":"http://localhost:8080/api/v1/users?page=0&size=2&sort=name,asc"},"next":{"href":"http://localhost:8080/api/v1/users?page=1&size=2&sort=name,asc"},"last":{"href":"http://localhost:8080/api/v1/users?page=2&size=2&sort=name,asc"}},"page":{"size":2,"totalElements":5,"totalPages":3,"number":0}}

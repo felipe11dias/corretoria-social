@@ -1,0 +1,13 @@
+==============================================================================
+ C1  —  consulta-proprio-200
+==============================================================================
+
+REQUISIÇÃO
+  GET http://localhost:8080/api/v1/users/4
+  Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJ...(truncado)
+
+RESPOSTA
+  Status HTTP: 200   (esperado: 200)
+
+  Corpo:
+  {"id":4,"name":"Corretor Evidencia 5078414","email":"corretor.5078414@email.com","login":"corretor.5078414","roles":[{"id":2,"name":"ROLE_REALTOR"}],"addresses":[{"id":3,"street":"Rua das Flores","number":"100","complement":"Sala 21","neighborhood":"Centro","city":"Fortaleza","state":"CE","zipCode":"60000000"}],"createdAt":"2026-07-26T15:06:56.792051","lastUpdatedAt":"2026-07-26T15:06:56.792051","_links":{"self":{"href":"http://localhost:8080/api/v1/users/4"},"users":{"href":"http://localhost:8080/api/v1/users"}}}

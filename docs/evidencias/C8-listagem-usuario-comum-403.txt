@@ -1,0 +1,13 @@
+==============================================================================
+ C8  —  listagem-usuario-comum-403
+==============================================================================
+
+REQUISIÇÃO
+  GET http://localhost:8080/api/v1/users
+  Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJ...(truncado)
+
+RESPOSTA
+  Status HTTP: 403   (esperado: 403)
+
+  Corpo:
+  {"type":"https://api.corretoria.app/problems/access-denied","title":"Acesso negado","status":403,"detail":"Você não tem permissão para acessar este recurso","instance":"/api/v1/users","timestamp":"2026-07-26T15:07:00.093497097Z"}

@@ -1,0 +1,16 @@
+==============================================================================
+ U3  —  cadastro-campos-ausentes-400
+==============================================================================
+
+REQUISIÇÃO
+  POST http://localhost:8080/api/v1/users
+  Authorization: (ausente)
+
+CORPO ENVIADO
+  {"name":"","email":"","login":"","password":"","roles":[]}
+
+RESPOSTA
+  Status HTTP: 400   (esperado: 400)
+
+  Corpo:
+  {"type":"https://api.corretoria.app/problems/validation-error","title":"Requisição inválida","status":400,"detail":"Um ou mais campos são inválidos","instance":"/api/v1/users","timestamp":"2026-07-26T15:06:57.318779176Z","errors":{"name":"O nome é obrigatório","login":"O login deve ter entre 4 e 255 caracteres","password":"A senha deve ter entre 8 e 72 caracteres","roles":"Informe ao menos um papel","email":"O e-mail é obrigatório"}}

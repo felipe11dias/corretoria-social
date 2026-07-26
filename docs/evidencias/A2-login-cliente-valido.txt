@@ -1,0 +1,16 @@
+==============================================================================
+ A2  —  login-cliente-valido
+==============================================================================
+
+REQUISIÇÃO
+  POST http://localhost:8080/api/v1/auth/login
+  Authorization: (ausente)
+
+CORPO ENVIADO
+  {"login":"cliente.demo","password":"cliente12345"}
+
+RESPOSTA
+  Status HTTP: 200   (esperado: 200)
+
+  Corpo:
+  {"token":"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJjbGllbnRlLmRlbW8iLCJpYXQiOjE3ODUwNzg0MTUsImV4cCI6MTc4NTA4MjAxNX0.tybFJtZ8GKT7Yh9QrfAESsnKgwrh-OeTPjhZl8Jzy3k","type":"Bearer","expiresIn":3600000}

@@ -1,0 +1,16 @@
+==============================================================================
+ A3  —  login-admin-valido
+==============================================================================
+
+REQUISIÇÃO
+  POST http://localhost:8080/api/v1/auth/login
+  Authorization: (ausente)
+
+CORPO ENVIADO
+  {"login":"admin.demo","password":"admin12345"}
+
+RESPOSTA
+  Status HTTP: 200   (esperado: 200)
+
+  Corpo:
+  {"token":"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbi5kZW1vIiwiaWF0IjoxNzg1MDc4NDE1LCJleHAiOjE3ODUwODIwMTV9.qghhrOv6XT-YHET2JKvzdqltDPo6oM8Ae0qAU8F8464","type":"Bearer","expiresIn":3600000}

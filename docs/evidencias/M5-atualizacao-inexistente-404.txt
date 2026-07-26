@@ -1,0 +1,16 @@
+==============================================================================
+ M5  —  atualizacao-inexistente-404
+==============================================================================
+
+REQUISIÇÃO
+  PUT http://localhost:8080/api/v1/users/999999
+  Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJ...(truncado)
+
+CORPO ENVIADO
+  {"name":"Fantasma","addresses":[]}
+
+RESPOSTA
+  Status HTTP: 404   (esperado: 404)
+
+  Corpo:
+  {"type":"https://api.corretoria.app/problems/resource-not-found","title":"Recurso não encontrado","status":404,"detail":"Usuário não encontrado: 999999","instance":"/api/v1/users/999999","timestamp":"2026-07-26T15:07:01.265114312Z"}

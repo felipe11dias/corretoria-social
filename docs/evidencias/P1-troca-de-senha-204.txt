@@ -1,0 +1,17 @@
+==============================================================================
+ P1  —  troca-de-senha-204
+==============================================================================
+
+REQUISIÇÃO
+  PATCH http://localhost:8080/api/v1/users/4/password
+  Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJ...(truncado)
+
+CORPO ENVIADO
+  {"currentPassword":"senhaSegura123","newPassword":"novaSenha456","confirmPassword":"novaSenha456"}
+
+RESPOSTA
+  Status HTTP: 204   (esperado: 204)
+
+  Corpo:
+  (vazio)
+

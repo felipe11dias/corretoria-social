@@ -1,0 +1,16 @@
+==============================================================================
+ A1  —  login-corretor-valido
+==============================================================================
+
+REQUISIÇÃO
+  POST http://localhost:8080/api/v1/auth/login
+  Authorization: (ausente)
+
+CORPO ENVIADO
+  {"login":"corretor.demo","password":"corretor12345"}
+
+RESPOSTA
+  Status HTTP: 200   (esperado: 200)
+
+  Corpo:
+  {"token":"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJjb3JyZXRvci5kZW1vIiwiaWF0IjoxNzg1MDc4NDE1LCJleHAiOjE3ODUwODIwMTV9.SMsVuVek61oTgFBkCl9_T_3YHuwlBVxDuFC9Cd9dgxI","type":"Bearer","expiresIn":3600000}

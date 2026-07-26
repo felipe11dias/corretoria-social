@@ -1,0 +1,16 @@
+==============================================================================
+ U4b  —  email-passa-bean-falha-vo-400
+==============================================================================
+
+REQUISIÇÃO
+  POST http://localhost:8080/api/v1/users
+  Authorization: (ausente)
+
+CORPO ENVIADO
+  {"name":"X Y","email":"joao@email","login":"semtld.5078414","password":"senhaSegura123","roles":["ROLE_REALTOR"],"addresses":[]}
+
+RESPOSTA
+  Status HTTP: 400   (esperado: 400)
+
+  Corpo:
+  {"type":"https://api.corretoria.app/problems/invalid-field-format","title":"Requisição inválida","status":400,"detail":"E-mail inválido: joao@email","instance":"/api/v1/users","timestamp":"2026-07-26T15:06:57.757019294Z"}

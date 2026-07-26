@@ -1,0 +1,16 @@
+==============================================================================
+ U8  —  login-ja-cadastrado-409
+==============================================================================
+
+REQUISIÇÃO
+  POST http://localhost:8080/api/v1/users
+  Authorization: (ausente)
+
+CORPO ENVIADO
+  {"name":"X Y","email":"novo.5078414@email.com","login":"corretor.5078414","password":"senhaSegura123","roles":["ROLE_REALTOR"],"addresses":[]}
+
+RESPOSTA
+  Status HTTP: 409   (esperado: 409)
+
+  Corpo:
+  {"type":"https://api.corretoria.app/problems/duplicate-resource","title":"Conflito de dados","status":409,"detail":"Login já cadastrado: corretor.5078414","instance":"/api/v1/users","timestamp":"2026-07-26T15:06:58.496885733Z"}

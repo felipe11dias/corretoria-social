@@ -1,0 +1,16 @@
+==============================================================================
+ U9  —  autocadastro-role-admin-403
+==============================================================================
+
+REQUISIÇÃO
+  POST http://localhost:8080/api/v1/users
+  Authorization: (ausente)
+
+CORPO ENVIADO
+  {"name":"Escalonamento","email":"esc.5078414@email.com","login":"esc.5078414","password":"senhaSegura123","roles":["ROLE_ADMIN"],"addresses":[]}
+
+RESPOSTA
+  Status HTTP: 403   (esperado: 403)
+
+  Corpo:
+  {"type":"https://api.corretoria.app/problems/forbidden-operation","title":"Operação não permitida","status":403,"detail":"O autocadastro público não concede o papel ROLE_ADMIN","instance":"/api/v1/users","timestamp":"2026-07-26T15:06:58.648119330Z"}
