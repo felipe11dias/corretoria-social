@@ -2,7 +2,7 @@
 
 **Autor:** Felipe Dias Mac Dowell
 **Data:** 2026-07-31
-**Depende de:** [`relatorio-corretoria-v1_0.md`](docs/relatorios/relatorio-corretoria-v1_0.md) (fundação de identidade — autenticação, usuários, papéis —, concluída em 26/07/2026, 15 etapas, 136 testes, 32 regras de ArchUnit)
+**Depende de:** [`relatorio-corretoria-v1_0.md`](../relatorios/relatorio-corretoria-v1_0.md) (fundação de identidade — autenticação, usuários, papéis —, concluída em 26/07/2026, 15 etapas, 136 testes, 32 regras de ArchUnit) e [`requisitos-corretoria-v1_0.md`](requisitos-corretoria-v1_0.md) (mesmos requisitos, em formato de requisitos)
 **Natureza deste documento:** requisitos e modelagem — ainda não há código desta fase implementado. É o ponto de partida para a Fase 2, do mesmo jeito que um relatório de etapas registrará a execução depois.
 
 ## 1. Contexto e objetivo
@@ -370,10 +370,9 @@ específicos; notificação in-app + e-mail.
 
 ## 10. Roteiro faseado de implementação
 
-Ordem por dependência real, no espírito das 15 etapas da Fase 1 — cada
-fase, ao ser iniciada, provavelmente se desdobra em etapas menores
-(entidade → migration → repository → VO/mapper → service → controller →
-testes), a detalhar quando a fase for iniciada.
+### 10.1 Visão geral
+
+Ordem por dependência real, no espírito das 15 etapas da Fase 1.
 
 | Fase | Entrega | Depende de |
 |---|---|---|
@@ -382,6 +381,91 @@ testes), a detalhar quando a fase for iniciada.
 | **2.3 — Negociação** | `Proposal`, `ProposalMessage` | 2.1 (propor sobre anúncio) e 2.2 (corretor propor a partir de busca pública) |
 | **2.4 — Social** | `Review`, `ListingFavorite`, `RealtorFollow`, `RealtorPost`, `RealtorPostComment`, `RealtorPostLike` | 2.1 (favoritar) e 2.3 (avaliação exige `Proposal`) |
 | **2.5 — Moderação** | `ListingReport` | 2.1 (pode ser antecipada logo após 2.1 se preferir) |
+
+### 10.2 Sprints detalhadas
+
+43 sprints, uma por camada dentro de cada cluster, no mesmo padrão arquitetural da Fase 1
+(entidade → migration → repository → VO/mapper → service → controller → testes →
+documentação), sem estimativa de tempo — só ordem de dependência. Um sprint extra de
+infraestrutura entra só nos clusters que introduzem dependência nova (storage no A, e-mail no
+B). Um único gate final fecha a fase (mesmo espírito da Etapa 15), não um gate por cluster.
+
+**Cluster A — Núcleo de anúncios**
+
+| Sprint | Entrega | Depende de |
+|---|---|---|
+| 2.1.1 | Infraestrutura de storage: MinIO no docker-compose, SDK S3 no `pom.xml`, propriedades `corretoria.storage.*`, `StorageService` (interface fina) | Fase 1 |
+| 2.1.2 | Entidades `Listing`, `Property`, `Vehicle`, `ListingPhoto` + enums (`ListingType`, `OperationType`, `ListingStatus`, `PropertyType`, `PropertyAmenity`, `VehicleType`, `FuelType`, `TransmissionType`, `VehicleCondition`) | 2.1.1 |
+| 2.1.3 | Migrations Flyway: `listings`, `properties`, `vehicles`, `listing_photos`, `property_amenities` + CHECKs (`operationType`×`type`, `price`>0) | 2.1.2 |
+| 2.1.4 | `ListingRepository` (query methods/`@Query` para filtros e busca por raio) | 2.1.3 |
+| 2.1.5 | VOs (`ListingCreationRequest`/`UpdateRequest`/`Response` + `Property`/`Vehicle` embutidos) e mappers | 2.1.3 |
+| 2.1.6 | `ListingService` (publicar, buscar/filtrar, atualizar, mudar status, upload/remoção de foto via `StorageService`) + exceções novas | 2.1.4, 2.1.5 |
+| 2.1.7 | `ListingController` + ajuste do `SecurityConfig` (catálogo de leitura público) | 2.1.6 |
+| 2.1.8 | Testes (unitários de service/mapper/VO + slice de controller: publicação, busca pública, posse, CHECK `Vehicle`×`operationType`) | 2.1.7 |
+| 2.1.9 | Documentação OpenAPI + atualização de Postman/README com o catálogo de anúncios | 2.1.8 |
+
+**Cluster B — Busca salva e notificações**
+
+| Sprint | Entrega | Depende de |
+|---|---|---|
+| 2.2.1 | Infraestrutura de e-mail: `spring-boot-starter-mail`, Mailpit no docker-compose, propriedades `corretoria.mail.*` | 2.1 completo |
+| 2.2.2 | Entidades `SavedSearch`, `PropertySearchCriteria`, `VehicleSearchCriteria`, `Notification` + enums (`SearchVisibility`, `NotificationType`) | 2.2.1 |
+| 2.2.3 | Migrations: `saved_searches`, `property_search_criteria`, `vehicle_search_criteria`, `notifications` | 2.2.2 |
+| 2.2.4 | `SavedSearchRepository`, `NotificationRepository` (+ query de buscas ativas compatíveis) | 2.2.3 |
+| 2.2.5 | VOs (`SavedSearchCreationRequest`/`Response`, `NotificationResponse`) e mappers | 2.2.3 |
+| 2.2.6 | `SavedSearchService`, `NotificationService`, `MatchingService` (evento `@TransactionalEventListener(AFTER_COMMIT)` + `@Async` disparado por `Listing` publicado) | 2.2.4, 2.2.5, 2.1 completo |
+| 2.2.7 | `SavedSearchController` (+ endpoint público de buscas `PUBLIC`), `NotificationController` | 2.2.6 |
+| 2.2.8 | Testes (matching por tipo/preço/raio, slice de controller) | 2.2.7 |
+| 2.2.9 | Documentação OpenAPI + Postman/README com busca salva e notificações | 2.2.8 |
+
+**Cluster C — Negociação**
+
+| Sprint | Entrega | Depende de |
+|---|---|---|
+| 2.3.1 | Entidades `Proposal`, `ProposalMessage` + enums (`ProposalInitiator`, `ProposalStatus`) | 2.1 completo |
+| 2.3.2 | Migrations: `proposals`, `proposal_messages` | 2.3.1 |
+| 2.3.3 | `ProposalRepository` | 2.3.2 |
+| 2.3.4 | VOs (`ProposalCreationRequest`/`StatusUpdateRequest`/`Response`, `ProposalMessageCreationRequest`/`Response`) e mappers | 2.3.2 |
+| 2.3.5 | `ProposalService` (criação por cliente ou corretor, mudança de status, mensagens, invariante corretor≠dono) + integração com `NotificationService` | 2.3.3, 2.3.4, 2.2 completo |
+| 2.3.6 | `ProposalController` | 2.3.5 |
+| 2.3.7 | Testes (as duas direções de iniciação, invariante de posse) | 2.3.6 |
+| 2.3.8 | Documentação OpenAPI + Postman/README com negociação | 2.3.7 |
+
+**Cluster D — Social**
+
+| Sprint | Entrega | Depende de |
+|---|---|---|
+| 2.4.1 | Entidades `Review`, `ListingFavorite`, `RealtorFollow`, `RealtorPost`, `RealtorPostComment`, `RealtorPostLike` | 2.3 completo (Review exige Proposal) |
+| 2.4.2 | Migrations correspondentes às 6 entidades | 2.4.1 |
+| 2.4.3 | Repositories correspondentes | 2.4.2 |
+| 2.4.4 | VOs (`Review*`, `RealtorPost*`, `RealtorPostComment*` — favoritar/seguir/curtir são toggle, sem VO de corpo) e mappers | 2.4.2 |
+| 2.4.5 | Services (`ReviewService` com elegibilidade via `Proposal`, `ListingFavoriteService`, `RealtorFollowService`, `RealtorPostService` + comentário/curtida) | 2.4.3, 2.4.4 |
+| 2.4.6 | Controllers (review, favorito, seguir, mural, comentário, curtida) | 2.4.5 |
+| 2.4.7 | Testes | 2.4.6 |
+| 2.4.8 | Documentação OpenAPI + Postman/README com a camada social | 2.4.7 |
+
+**Cluster E — Moderação**
+
+| Sprint | Entrega | Depende de |
+|---|---|---|
+| 2.5.1 | Entidade `ListingReport` + enums (`ReportReason`, `ReportStatus`) | 2.1 completo |
+| 2.5.2 | Migration `listing_reports` | 2.5.1 |
+| 2.5.3 | `ListingReportRepository` | 2.5.2 |
+| 2.5.4 | VOs (`ListingReportCreationRequest`/`Response`/`StatusUpdateRequest`) e mapper | 2.5.2 |
+| 2.5.5 | `ListingReportService` (abrir denúncia, decidir status, restrito a admin) | 2.5.3, 2.5.4 |
+| 2.5.6 | `ListingReportController` | 2.5.5 |
+| 2.5.7 | Testes | 2.5.6 |
+| 2.5.8 | Documentação OpenAPI + Postman/README com denúncias | 2.5.7 |
+
+**Fechamento**
+
+| Sprint | Entrega | Depende de |
+|---|---|---|
+| 2.F | Revisão, matriz de evidências e gate final da Fase 2 (mesmo espírito da Etapa 15: `mvn clean verify` verde com a contagem de regras de ArchUnit atualizada, evidência por par endpoint/retorno cobrindo os 5 clusters) — insumo para um futuro `relatorio-corretoria-v2_0.md`, escrito depois da execução | 2.1 a 2.5 completos |
+
+**Nota de ordem:** clusters C, D e E podem correr em paralelo entre si depois que suas
+dependências específicas forem satisfeitas (C depende de A+B, D depende de A+C, E depende só
+de A) — a numeração 2.1→2.5 é a ordem de menor risco, não uma obrigação estritamente serial.
 
 ## 11. Decisões e justificativas (registro consolidado)
 
@@ -438,7 +522,8 @@ confirmação ou ajuste antes da Fase 2.1 começar:
 
 ## Referências
 
-- [`docs/relatorios/relatorio-corretoria-v1_0.md`](docs/relatorios/relatorio-corretoria-v1_0.md) — fundação de identidade (Fase 1).
+- [`docs/relatorios/relatorio-corretoria-v1_0.md`](../relatorios/relatorio-corretoria-v1_0.md) — relatório técnico completo da Fase 1 (execução, defeitos, evidências).
+- [`docs/requisitos/requisitos-corretoria-v1_0.md`](requisitos-corretoria-v1_0.md) — requisitos da Fase 1, no mesmo formato deste documento.
 - `.claude/skills/corretoria-naming-standards/SKILL.md` — glossário e
   convenções de nome (a estender com a seção 4 deste documento).
 - `.claude/skills/corretoria-architecture-guard/SKILL.md` — regras de
