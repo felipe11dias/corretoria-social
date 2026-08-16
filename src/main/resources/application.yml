@@ -23,6 +23,13 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: false
 
+  servlet:
+    multipart:
+      # Foto de anúncio: o limite por arquivo é a primeira barreira contra upload abusivo,
+      # antes mesmo de a requisição chegar ao controller.
+      max-file-size: 5MB
+      max-request-size: 25MB
+
 server:
   port: 8080
   error:
@@ -35,6 +42,15 @@ corretoria:
     expiration: ${JWT_EXPIRATION:3600000}
   problem:
     base-uri: ${PROBLEM_BASE_URI:https://api.corretoria.app}
+  storage:
+    # Endereço usado pela aplicação; dentro do compose o host é o nome do serviço (storage).
+    endpoint: ${STORAGE_ENDPOINT:http://localhost:9000}
+    # Endereço usado pelo cliente da API para baixar a foto — visto do navegador.
+    public-base-url: ${STORAGE_PUBLIC_BASE_URL:http://localhost:9000}
+    region: ${STORAGE_REGION:us-east-1}
+    bucket: ${STORAGE_BUCKET:corretoria-listing-photos}
+    access-key: ${STORAGE_ACCESS_KEY:minioadmin}
+    secret-key: ${STORAGE_SECRET_KEY:minioadmin}
 
 management:
   endpoints:
