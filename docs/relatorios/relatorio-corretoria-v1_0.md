@@ -2051,7 +2051,7 @@ flowchart TD
 
 Tudo abaixo foi executado contra a pilha subida **do zero**, com
 `docker compose down -v && docker compose up --build`. As evidências estão em
-[`docs/evidencias/`](docs/evidencias): uma transcrição HTTP completa por cenário, mais o
+[`docs/evidencias/`](../evidencias): uma transcrição HTTP completa por cenário, mais o
 arquivo `900-evidencias-complementares.txt` com as evidências de 15.4.
 
 #### 15.1 — Gate de entrada: 10 de 10

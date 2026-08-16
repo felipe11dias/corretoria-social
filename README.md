@@ -9,7 +9,7 @@ autorização, gestão de usuários pelo administrador, auditoria de escrita, ve
 schema e uma API REST versionada e documentada.
 
 > O relatório técnico completo — decisões, justificativas e histórico de cada etapa — está em
-> [`relatorio-corretoria-v1_0.md`](relatorio-corretoria-v1_0.md).
+> [`relatorio-corretoria-v1_0.md`](docs/relatorios/relatorio-corretoria-v1_0.md).
 
 ---
 
