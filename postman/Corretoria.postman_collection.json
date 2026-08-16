@@ -10,6 +10,10 @@
     { "key": "token", "value": "" },
     { "key": "userId", "value": "" },
     { "key": "otherUserId", "value": "1" },
+    { "key": "realtorToken", "value": "" },
+    { "key": "customerToken", "value": "" },
+    { "key": "realtorId", "value": "" },
+    { "key": "listingId", "value": "" },
     { "key": "runId", "value": "" },
     { "key": "senhaAtual", "value": "senhaSegura123" },
     { "key": "senhaNova", "value": "novaSenha456" }
@@ -49,7 +53,7 @@
           }
         },
         {
-          "name": "Login corretor",
+          "name": "Login corretor (salva realtorToken)",
           "event": [
             {
               "listen": "test",
@@ -57,7 +61,8 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('200 OK', () => pm.response.to.have.status(200));",
-                  "pm.test('token emitido', () => pm.expect(pm.response.json().token).to.be.a('string'));"
+                  "pm.test('token emitido', () => pm.expect(pm.response.json().token).to.be.a('string'));",
+                  "pm.collectionVariables.set('realtorToken', pm.response.json().token);"
                 ]
               }
             }
@@ -70,7 +75,7 @@
           }
         },
         {
-          "name": "Login cliente",
+          "name": "Login cliente (salva customerToken)",
           "event": [
             {
               "listen": "test",
@@ -78,7 +83,8 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('200 OK', () => pm.response.to.have.status(200));",
-                  "pm.test('token emitido', () => pm.expect(pm.response.json().token).to.be.a('string'));"
+                  "pm.test('token emitido', () => pm.expect(pm.response.json().token).to.be.a('string'));",
+                  "pm.collectionVariables.set('customerToken', pm.response.json().token);"
                 ]
               }
             }
@@ -606,6 +612,496 @@
             "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
             "url": { "raw": "{{baseUrl}}/api/v1/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "{{userId}}"] },
             "description": "Consultado pelo administrador, para provar que o registro sumiu de fato — e não apenas que o dono perdeu o acesso."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Anúncios",
+      "description": "Catálogo da Fase 2. Usa o corretor e o cliente de demonstração ({{realtorToken}} e {{customerToken}}, salvos na pasta Autenticação), e não o usuário criado na pasta Usuários — aquele é excluído no fim dela.\n\nA sequência é re-executável: o anúncio criado termina com situação REMOVED, que é a forma de aposentar um anúncio (não há DELETE de anúncio por decisão de modelagem).",
+      "item": [
+        {
+          "name": "Publica anúncio de imóvel (201, salva listingId)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('cabeçalho Location', () => pm.expect(pm.response.headers.get('Location')).to.be.a('string'));",
+                  "const body = pm.response.json();",
+                  "pm.test('nasce ACTIVE: publicação é imediata', () => pm.expect(body.status).to.eql('ACTIVE'));",
+                  "pm.test('o dono veio do token, não do corpo', () => pm.expect(body.realtor.id).to.be.a('number'));",
+                  "pm.test('detalhamento de imóvel preenchido, o de veículo não', () => {",
+                  "  pm.expect(body.property).to.not.be.null;",
+                  "  pm.expect(body.vehicle).to.be.null;",
+                  "});",
+                  "pm.collectionVariables.set('listingId', body.id);",
+                  "pm.collectionVariables.set('realtorId', body.realtor.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PROPERTY\",\n  \"operationType\": \"SALE\",\n  \"title\": \"Apartamento na Aldeota\",\n  \"description\": \"Três quartos, nascente, dois vagas cobertas.\",\n  \"price\": 450000.00,\n  \"neighborhood\": \"Aldeota\",\n  \"city\": \"Fortaleza\",\n  \"state\": \"CE\",\n  \"latitude\": -3.7327,\n  \"longitude\": -38.5270,\n  \"property\": {\n    \"propertyType\": \"APARTMENT\",\n    \"totalArea\": 90.00,\n    \"bedrooms\": 3,\n    \"bathrooms\": 2,\n    \"garageSpots\": 2,\n    \"condominiumFee\": 450.00,\n    \"iptu\": 1200.00,\n    \"amenities\": [\"POOL\", \"ELEVATOR\", \"GYM\"]\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings"] },
+            "description": "O corpo não tem campo de corretor: o dono é resolvido a partir do token. Aceitar o id do dono no payload permitiria publicar em nome de outro."
+          }
+        },
+        {
+          "name": "Publicação por cliente: negado (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type access-denied', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/access-denied'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PROPERTY\",\n  \"operationType\": \"SALE\",\n  \"title\": \"Tentativa de cliente\",\n  \"description\": \"Cliente busca e negocia, mas nunca oferta.\",\n  \"price\": 100000.00,\n  \"neighborhood\": \"Centro\",\n  \"city\": \"Fortaleza\",\n  \"state\": \"CE\",\n  \"latitude\": -3.7300,\n  \"longitude\": -38.5200,\n  \"property\": {\n    \"propertyType\": \"HOUSE\",\n    \"totalArea\": 120.00\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings"] },
+            "description": "Regra 1 da Fase 2: só corretor oferta."
+          }
+        },
+        {
+          "name": "Publicação sem token (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+                  "pm.test('type missing-token', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/missing-token'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PROPERTY\",\n  \"operationType\": \"SALE\",\n  \"title\": \"Sem token\",\n  \"description\": \"Ler o catálogo é livre; publicar não.\",\n  \"price\": 100000.00,\n  \"neighborhood\": \"Centro\",\n  \"city\": \"Fortaleza\",\n  \"state\": \"CE\",\n  \"latitude\": -3.73,\n  \"longitude\": -38.52,\n  \"property\": { \"propertyType\": \"HOUSE\", \"totalArea\": 120.00 }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings"] },
+            "description": "A abertura do catálogo vale só para leitura."
+          }
+        },
+        {
+          "name": "Veículo com aluguel: proibido (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('type invalid-listing', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/invalid-listing'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"VEHICLE\",\n  \"operationType\": \"RENT\",\n  \"title\": \"Fiat Argo 2023\",\n  \"description\": \"Aluguel de automóvel é operação de locadora.\",\n  \"price\": 300.00,\n  \"neighborhood\": \"Meireles\",\n  \"city\": \"Fortaleza\",\n  \"state\": \"CE\",\n  \"latitude\": -3.7250,\n  \"longitude\": -38.4900,\n  \"vehicle\": {\n    \"vehicleType\": \"CAR\",\n    \"brand\": \"Fiat\",\n    \"model\": \"Argo\",\n    \"color\": \"Prata\",\n    \"manufactureYear\": 2022,\n    \"modelYear\": 2023,\n    \"mileageKm\": 30000,\n    \"fuelType\": \"FLEX\",\n    \"transmission\": \"AUTOMATIC\",\n    \"condition\": \"USED\"\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings"] },
+            "description": "Cada campo é válido isoladamente; a combinação é que não existe no domínio — por isso o type é invalid-listing, e não validation-error. A mesma regra está no CHECK ck_listings_vehicle_only_sale."
+          }
+        },
+        {
+          "name": "Detalhamento fora do tipo: proibido (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('type invalid-listing', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/invalid-listing'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PROPERTY\",\n  \"operationType\": \"SALE\",\n  \"title\": \"Imóvel com detalhamento de veículo\",\n  \"description\": \"Um anúncio tem exatamente um detalhamento.\",\n  \"price\": 200000.00,\n  \"neighborhood\": \"Centro\",\n  \"city\": \"Fortaleza\",\n  \"state\": \"CE\",\n  \"latitude\": -3.73,\n  \"longitude\": -38.52,\n  \"vehicle\": {\n    \"vehicleType\": \"CAR\",\n    \"brand\": \"Fiat\",\n    \"model\": \"Argo\",\n    \"color\": \"Prata\",\n    \"manufactureYear\": 2022,\n    \"modelYear\": 2023,\n    \"mileageKm\": 30000,\n    \"fuelType\": \"FLEX\",\n    \"transmission\": \"AUTOMATIC\",\n    \"condition\": \"USED\"\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings"] }
+          }
+        },
+        {
+          "name": "Busca no catálogo sem token (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('o catálogo é público: nenhum token foi enviado', () =>",
+                  "  pm.expect(pm.response.json().page.totalElements).to.be.at.least(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/listings?type=PROPERTY&city=Fortaleza&maxPrice=500000",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "listings"],
+              "query": [
+                { "key": "type", "value": "PROPERTY" },
+                { "key": "city", "value": "Fortaleza" },
+                { "key": "maxPrice", "value": "500000" }
+              ]
+            },
+            "description": "Filtros combináveis, todos opcionais. Sem filtro de situação, só anúncios ACTIVE."
+          }
+        },
+        {
+          "name": "Busca por raio (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('o anúncio da Aldeota está dentro de 5 km', () =>",
+                  "  pm.expect(pm.response.json().page.totalElements).to.be.at.least(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/listings?latitude=-3.7327&longitude=-38.5270&radiusKm=5",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "listings"],
+              "query": [
+                { "key": "latitude", "value": "-3.7327" },
+                { "key": "longitude", "value": "-38.5270" },
+                { "key": "radiusKm", "value": "5" }
+              ]
+            },
+            "description": "Distância por Haversine, com recorte prévio por faixa de latitude para usar o índice."
+          }
+        },
+        {
+          "name": "Busca por raio sem coordenada (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('type invalid-field-format', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/invalid-field-format'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/listings?radiusKm=5",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "listings"],
+              "query": [{ "key": "radiusKm", "value": "5" }]
+            },
+            "description": "Raio sem centro não define recorte nenhum."
+          }
+        },
+        {
+          "name": "Busca por situação PAUSED sem posse: negado (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type forbidden-operation', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/forbidden-operation'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/listings?status=PAUSED",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "listings"],
+              "query": [{ "key": "status", "value": "PAUSED" }]
+            },
+            "description": "Pausar tira o anúncio da vitrine; listá-lo pelo filtro de situação anularia a decisão do corretor."
+          }
+        },
+        {
+          "name": "Consulta por id sem token (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('links de navegação', () => {",
+                  "  pm.expect(body._links.self.href).to.be.a('string');",
+                  "  pm.expect(body._links.realtor.href).to.be.a('string');",
+                  "});",
+                  "pm.test('o corretor sai resumido: só id e nome', () =>",
+                  "  pm.expect(Object.keys(body.realtor)).to.have.members(['id', 'name']));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}"] },
+            "description": "O catálogo é aberto, então o corretor aparece resumido: e-mail, login e endereços continuam exigindo token e posse."
+          }
+        },
+        {
+          "name": "Atualização por quem não é dono: negado (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type access-denied', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/access-denied'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"operationType\": \"SALE\",\n  \"title\": \"Sequestro de anúncio\",\n  \"description\": \"Trocar o id da URL não dá posse do recurso.\",\n  \"price\": 1.00,\n  \"neighborhood\": \"Aldeota\",\n  \"city\": \"Fortaleza\",\n  \"state\": \"CE\",\n  \"latitude\": -3.7327,\n  \"longitude\": -38.5270,\n  \"property\": { \"propertyType\": \"APARTMENT\", \"totalArea\": 90.00 }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}"] },
+            "description": "Barreira de IDOR do anúncio: @listingSecurity.isOwner."
+          }
+        },
+        {
+          "name": "Atualização do próprio anúncio (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('preço e comodidades atualizados', () => {",
+                  "  pm.expect(body.price).to.eql(470000.00);",
+                  "  pm.expect(body.property.amenities).to.include('BALCONY');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"operationType\": \"SALE\",\n  \"title\": \"Apartamento na Aldeota (reformado)\",\n  \"description\": \"Três quartos, nascente, reformado em 2026.\",\n  \"price\": 470000.00,\n  \"neighborhood\": \"Aldeota\",\n  \"city\": \"Fortaleza\",\n  \"state\": \"CE\",\n  \"latitude\": -3.7327,\n  \"longitude\": -38.5270,\n  \"property\": {\n    \"propertyType\": \"APARTMENT\",\n    \"totalArea\": 92.00,\n    \"bedrooms\": 3,\n    \"bathrooms\": 2,\n    \"garageSpots\": 2,\n    \"amenities\": [\"POOL\", \"ELEVATOR\", \"BALCONY\"]\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}"] },
+            "description": "O tipo não vai no corpo: é imutável. O detalhamento enviado tem de corresponder ao tipo já registrado."
+          }
+        },
+        {
+          "name": "Remoção de foto inexistente (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+                  "pm.test('type resource-not-found', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/resource-not-found'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{realtorToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}/photos/999999", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}", "photos", "999999"] },
+            "description": "O envio de foto é multipart e exige escolher um arquivo local, então fica fora da execução automática — use o Swagger ou:\n\ncurl -H \"Authorization: Bearer $TOKEN\" -F \"photo=@fachada.jpg\" http://localhost:8080/api/v1/listings/1/photos"
+          }
+        },
+        {
+          "name": "Pausa o anúncio (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('situação PAUSED', () => pm.expect(pm.response.json().status).to.eql('PAUSED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"PAUSED\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}", "status"] },
+            "description": "Transição de estado tem endpoint próprio: pausar não é editar conteúdo."
+          }
+        },
+        {
+          "name": "Catálogo após pausar: prova do efeito (200 sem o anúncio)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const listings = (pm.response.json()._embedded || {}).listingResponseList || [];",
+                  "const paused = pm.collectionVariables.get('listingId');",
+                  "pm.test('o anúncio pausado saiu da vitrine', () =>",
+                  "  pm.expect(listings.map(l => String(l.id))).to.not.include(String(paused)));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/listings?realtorId={{realtorId}}&size=100",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "listings"],
+              "query": [
+                { "key": "realtorId", "value": "{{realtorId}}" },
+                { "key": "size", "value": "100" }
+              ]
+            },
+            "description": "Evidência de efeito: o 200 do PATCH prova que a requisição foi aceita, não que o anúncio saiu da vitrine."
+          }
+        },
+        {
+          "name": "Busca dos próprios pausados pelo dono (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const listings = (pm.response.json()._embedded || {}).listingResponseList || [];",
+                  "const paused = pm.collectionVariables.get('listingId');",
+                  "pm.test('o dono enxerga o próprio anúncio pausado', () =>",
+                  "  pm.expect(listings.map(l => String(l.id))).to.include(String(paused)));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{realtorToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/listings?status=PAUSED&realtorId={{realtorId}}&size=100",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "listings"],
+              "query": [
+                { "key": "status", "value": "PAUSED" },
+                { "key": "realtorId", "value": "{{realtorId}}" },
+                { "key": "size", "value": "100" }
+              ]
+            },
+            "description": "O outro lado da regra: negado ao visitante, permitido ao dono que filtra os próprios anúncios."
+          }
+        },
+        {
+          "name": "Aposenta o anúncio (200, limpeza)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('situação REMOVED', () => pm.expect(pm.response.json().status).to.eql('REMOVED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"REMOVED\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}", "status"] },
+            "description": "Não existe DELETE de anúncio: REMOVED é a aposentadoria, e mantém o histórico de propostas e denúncias que os clusters seguintes vão pendurar nele."
           }
         }
       ]

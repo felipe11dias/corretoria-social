@@ -14,7 +14,9 @@
 
     <groupId>com.corretoria</groupId>
     <artifactId>corretoria</artifactId>
-    <version>1.0.0</version>
+    <!-- Minor: o Cluster A da Fase 2 acrescenta endpoints e um type de erro, sem quebrar
+         nenhum contrato existente. -->
+    <version>1.1.0</version>
     <name>corretoria</name>
     <description>Plataforma unificada de corretores, clientes e administração</description>
 

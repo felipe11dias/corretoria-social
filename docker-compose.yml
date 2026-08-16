@@ -65,7 +65,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: corretoria-api:1.0.0
+    image: corretoria-api:1.1.0
     container_name: corretoria-app
     depends_on:
       db:
