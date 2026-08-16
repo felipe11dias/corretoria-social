@@ -14,9 +14,11 @@ import java.math.BigDecimal;
  * qualquer outro — o nome {@code ...SearchRequest} descreve a ação (busca), e não colide com a
  * entidade de busca salva, que se chama {@code SavedSearch} justamente por isso.
  *
- * <p><strong>Invariantes:</strong> raio exige coordenada; faixa de preço não pode ser
- * invertida. As duas são verificadas aqui, e não no serviço, porque dependem apenas dos
- * próprios campos.
+ * <p>A coerência entre os critérios — raio exige coordenada, faixa de preço não invertida — é
+ * verificada no serviço, e não no construtor compacto como nos VOs de valor
+ * ({@code Email}, {@code ZipCode}). Este VO é montado pelo <em>data binding</em> da query
+ * string: uma exceção lançada durante a construção sairia como falha de instanciação do
+ * Spring, e o cliente receberia {@code 500} onde o certo é {@code 400}.
  *
  * @param status filtro de situação; ausente significa apenas anúncios ativos. Consultar
  *               situação diferente de {@code ACTIVE} exige ser o dono ou administrador,
@@ -43,20 +45,6 @@ public record ListingSearchRequest(
         BigDecimal latitude,
         BigDecimal longitude,
         Integer radiusKm) {
-
-    public ListingSearchRequest {
-        if (radiusKm != null && (latitude == null || longitude == null)) {
-            throw new IllegalArgumentException(
-                    "A busca por raio exige latitude e longitude");
-        }
-        if (radiusKm != null && radiusKm <= 0) {
-            throw new IllegalArgumentException("O raio deve ser maior que zero");
-        }
-        if (minPrice != null && maxPrice != null && minPrice.compareTo(maxPrice) > 0) {
-            throw new IllegalArgumentException(
-                    "O preço mínimo não pode ser maior que o preço máximo");
-        }
-    }
 
     /** Situação efetiva da busca: sem filtro explícito, o catálogo mostra o que está ativo. */
     public ListingStatus effectiveStatus() {

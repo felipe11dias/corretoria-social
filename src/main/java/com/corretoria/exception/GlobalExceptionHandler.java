@@ -69,6 +69,20 @@ public class GlobalExceptionHandler {
                 exception.getMessage(), request);
     }
 
+    /**
+     * Combinação de campos que não existe no domínio do anúncio.
+     *
+     * <p>Tem {@code type} próprio, e não o de validação: o cliente precisa distinguir "faltou
+     * um campo" de "essa combinação não existe" para saber o que corrigir.
+     */
+    @ExceptionHandler(InvalidListingException.class)
+    public ProblemDetail handleInvalidListing(
+            InvalidListingException exception, HttpServletRequest request) {
+
+        return build(HttpStatus.BAD_REQUEST, ProblemType.INVALID_LISTING,
+                exception.getMessage(), request);
+    }
+
     @ExceptionHandler(InvalidPasswordException.class)
     public ProblemDetail handleInvalidPassword(
             InvalidPasswordException exception, HttpServletRequest request) {

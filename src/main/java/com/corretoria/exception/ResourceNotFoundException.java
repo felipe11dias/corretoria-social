@@ -20,4 +20,12 @@ public class ResourceNotFoundException extends RuntimeException {
     public static ResourceNotFoundException role(Object name) {
         return new ResourceNotFoundException("Papel não encontrado: " + name);
     }
+
+    public static ResourceNotFoundException listing(Long id) {
+        return new ResourceNotFoundException("Anúncio não encontrado: " + id);
+    }
+
+    public static ResourceNotFoundException listingPhoto(Long id) {
+        return new ResourceNotFoundException("Foto não encontrada: " + id);
+    }
 }

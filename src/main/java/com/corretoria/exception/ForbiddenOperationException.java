@@ -19,4 +19,21 @@ public class ForbiddenOperationException extends RuntimeException {
         return new ForbiddenOperationException(
                 "O autocadastro público não concede o papel ROLE_ADMIN");
     }
+
+    public static ForbiddenOperationException realtorRoleRequired() {
+        return new ForbiddenOperationException(
+                "Apenas usuários com o papel ROLE_REALTOR publicam anúncios");
+    }
+
+    /**
+     * Consulta de anúncio fora do ar por quem não é o dono.
+     *
+     * <p>Anúncio pausado, removido ou concluído saiu do catálogo por decisão do corretor;
+     * deixar qualquer visitante listá-lo pelo filtro de situação anularia essa decisão.
+     */
+    public static ForbiddenOperationException nonActiveSearchRequiresOwnership() {
+        return new ForbiddenOperationException(
+                "Buscar anúncios com situação diferente de ACTIVE exige ser o corretor dono "
+                        + "(filtro realtorId) ou ter o papel ROLE_ADMIN");
+    }
 }

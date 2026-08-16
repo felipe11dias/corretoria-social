@@ -7,6 +7,7 @@ import com.corretoria.enums.OperationType;
 import com.corretoria.enums.PropertyType;
 import com.corretoria.enums.VehicleType;
 import java.math.BigDecimal;
+import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -20,6 +21,16 @@ import org.springframework.data.repository.query.Param;
  * pertencem a este agregado e são gerenciados por cascade, mesmo padrão de {@code Address}.
  */
 public interface ListingRepository extends JpaRepository<Listing, Long> {
+
+    /**
+     * Id do corretor dono do anúncio.
+     *
+     * <p>Projeção em vez de carregar o agregado: a checagem de posse roda a cada requisição
+     * de escrita, fora de transação (o {@code open-in-view} está desligado), e navegar
+     * {@code listing.getRealtor().getId()} traria um proxy já desanexado.
+     */
+    @Query("SELECT l.realtor.id FROM Listing l WHERE l.id = :id")
+    Optional<Long> findRealtorIdById(@Param("id") Long id);
 
     /**
      * Busca do catálogo: filtros comuns, filtros do tipo e recorte por raio.

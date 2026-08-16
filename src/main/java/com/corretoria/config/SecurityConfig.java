@@ -34,6 +34,11 @@ public class SecurityConfig {
             "/actuator/info"
     };
 
+    private static final String[] LISTING_CATALOG_ENDPOINTS = {
+            "/api/v1/listings",
+            "/api/v1/listings/*"
+    };
+
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final JwtAuthenticationEntryPoint authenticationEntryPoint;
 
@@ -57,6 +62,11 @@ public class SecurityConfig {
                         // Apenas o POST é público: é o autocadastro. GET, PUT e DELETE em
                         // /users exigem token, e o escopo é decidido por @PreAuthorize.
                         .requestMatchers(HttpMethod.POST, "/api/v1/users").permitAll()
+                        // O catálogo de anúncios é vitrine: qualquer visitante lista e abre um
+                        // anúncio sem token. Só a leitura — publicar, editar, pausar e mexer
+                        // nas fotos continuam exigindo autenticação e posse, decididas por
+                        // @PreAuthorize no ListingController.
+                        .requestMatchers(HttpMethod.GET, LISTING_CATALOG_ENDPOINTS).permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(handling ->
                         handling.authenticationEntryPoint(authenticationEntryPoint))
