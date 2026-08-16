@@ -54,6 +54,13 @@ public interface ListingRepository extends JpaRepository<Listing, Long> {
      * <p>A lista de parâmetros é longa por natureza: é a assinatura de uma consulta, não de uma
      * regra de negócio. Quem chama monta os critérios a partir de um único VO
      * ({@code ListingSearchRequest}) — o repository não conhece VO.
+     *
+     * <p>Os critérios de texto chegam <strong>já normalizados</strong> em minúsculas, e a
+     * comparação aplica {@code lower} só na coluna. Escrever {@code lower(:city)} parecia
+     * simétrico e quebrava contra o PostgreSQL: um parâmetro nulo dentro de uma função não tem
+     * tipo inferível, o Hibernate o liga como {@code bytea}, e o banco recusa
+     * {@code lower(bytea)} já na preparação da instrução — mesmo quando o filtro nem seria
+     * usado. Na comparação direta com a coluna o tipo é inferido, e o nulo passa.
      */
     @Query("""
             SELECT l FROM Listing l
@@ -63,16 +70,16 @@ public interface ListingRepository extends JpaRepository<Listing, Long> {
               AND (:type IS NULL OR l.type = :type)
               AND (:operationType IS NULL OR l.operationType = :operationType)
               AND (:realtorId IS NULL OR l.realtor.id = :realtorId)
-              AND (:city IS NULL OR lower(l.city) = lower(:city))
-              AND (:state IS NULL OR lower(l.state) = lower(:state))
-              AND (:neighborhood IS NULL OR lower(l.neighborhood) = lower(:neighborhood))
+              AND (:city IS NULL OR lower(l.city) = :city)
+              AND (:state IS NULL OR lower(l.state) = :state)
+              AND (:neighborhood IS NULL OR lower(l.neighborhood) = :neighborhood)
               AND (:minPrice IS NULL OR l.price >= :minPrice)
               AND (:maxPrice IS NULL OR l.price <= :maxPrice)
               AND (:propertyType IS NULL OR p.propertyType = :propertyType)
               AND (:minBedrooms IS NULL OR p.bedrooms >= :minBedrooms)
               AND (:minTotalArea IS NULL OR p.totalArea >= :minTotalArea)
               AND (:vehicleType IS NULL OR v.vehicleType = :vehicleType)
-              AND (:brand IS NULL OR lower(v.brand) = lower(:brand))
+              AND (:brand IS NULL OR lower(v.brand) = :brand)
               AND (:maxMileageKm IS NULL OR v.mileageKm <= :maxMileageKm)
               AND (:minManufactureYear IS NULL OR v.manufactureYear >= :minManufactureYear)
               AND (:radiusKm IS NULL OR (

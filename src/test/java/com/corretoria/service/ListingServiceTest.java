@@ -440,6 +440,12 @@ class ListingServiceTest {
             assertThat(listing.getPhotos().getFirst().isCover()).isTrue();
             assertThat(listing.getPhotos().getFirst().getPosition()).isEqualTo(1);
             assertThat(listing.getPhotos().getFirst().getStorageKey()).isEqualTo(STORAGE_KEY);
+            // A resposta carrega o id da foto, gerado pelo INSERT: sem a descarga explícita, a
+            // inserção em cascata só ocorreria no commit e o cliente receberia id nulo.
+            then(listingRepository).should().flush();
+            // E nunca por save(): para entidade com id, save é merge, e o merge de um filho
+            // transiente grava uma cópia — o id nasceria fora do objeto que vira resposta.
+            then(listingRepository).should(never()).save(any());
         }
 
         @Test

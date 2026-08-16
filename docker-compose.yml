@@ -36,7 +36,9 @@ services:
     volumes:
       - minio-data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      # A imagem do MinIO não traz curl nem wget; o cliente `mc` que ela embarca já responde
+      # pela saúde do cluster, e é o healthcheck que a própria MinIO documenta.
+      test: ["CMD", "mc", "ready", "local"]
       interval: 5s
       timeout: 5s
       retries: 10

@@ -14,6 +14,8 @@ import com.corretoria.exception.ResourceNotFoundException;
 import com.corretoria.mapper.ListingMapper;
 import com.corretoria.repository.ListingRepository;
 import com.corretoria.security.UserSecurity;
+import com.corretoria.util.ObjectUtils;
+import com.corretoria.util.TextUtils;
 import com.corretoria.vo.shared.PhotoContent;
 import com.corretoria.vo.v1.request.ListingCreationRequest;
 import com.corretoria.vo.v1.request.ListingSearchRequest;
@@ -132,16 +134,16 @@ public class ListingService {
                         request.type(),
                         request.operationType(),
                         request.realtorId(),
-                        request.city(),
-                        request.state(),
-                        request.neighborhood(),
+                        normalizedOrNull(request.city()),
+                        normalizedOrNull(request.state()),
+                        normalizedOrNull(request.neighborhood()),
                         request.minPrice(),
                         request.maxPrice(),
                         request.propertyType(),
                         request.minBedrooms(),
                         request.minTotalArea(),
                         request.vehicleType(),
-                        request.brand(),
+                        normalizedOrNull(request.brand()),
                         request.maxMileageKm(),
                         request.minManufactureYear(),
                         request.latitude(),
@@ -172,7 +174,15 @@ public class ListingService {
         listingPhoto.setCover(listing.getPhotos().isEmpty());
         listing.addPhoto(listingPhoto);
 
-        listingRepository.save(listing);
+        // flush, e não save: o anúncio já é uma entidade gerenciada, então a nova foto é
+        // gravada por cascade — o flush apenas antecipa o INSERT, que é o que gera o id
+        // devolvido na resposta.
+        //
+        // save() aqui seria pior que redundante: para uma entidade com id ele é um merge, e o
+        // merge de um filho ainda transiente grava uma *cópia* gerenciada. O id nasceria na
+        // cópia, e o cliente receberia "id": null — sem como apagar a foto que acabou de
+        // enviar. Foi o que aconteceu na primeira validação contra o banco real.
+        listingRepository.flush();
         return listingMapper.toPhotoResponse(listingPhoto, storageService.baseUrl());
     }
 
@@ -317,6 +327,17 @@ public class ListingService {
                 .filter(photo -> photo.getId().equals(photoId))
                 .findFirst()
                 .orElseThrow(() -> ResourceNotFoundException.listingPhoto(photoId));
+    }
+
+    /**
+     * Forma canônica de um critério de texto: minúsculas, ou nulo quando não há filtro.
+     *
+     * <p>Filtro em branco é ausência de filtro — {@code ?city=} não deve devolver zero
+     * resultados. A normalização acontece aqui, e não na consulta, porque {@code lower(:city)}
+     * sobre parâmetro nulo é recusado pelo PostgreSQL (ver {@code ListingRepository.search}).
+     */
+    private String normalizedOrNull(String criterion) {
+        return ObjectUtils.isBlank(criterion) ? null : TextUtils.normalize(criterion);
     }
 
     private Listing getListingOrThrow(Long id) {
