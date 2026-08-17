@@ -63,6 +63,21 @@ services:
       "
     restart: "no"
 
+  # Servidor SMTP de desenvolvimento: aceita qualquer mensagem, não entrega a ninguém e
+  # mostra tudo numa caixa de entrada web. É o que permite exercitar a notificação por
+  # e-mail sem mandar mensagem de teste para endereço real de ninguém.
+  mail:
+    image: axllent/mailpit:v1.21
+    container_name: corretoria-mail
+    environment:
+      MP_MAX_MESSAGES: 500
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    ports:
+      - "${MAIL_PORT:-1025}:1025"
+      - "${MAIL_WEB_PORT:-8025}:8025"
+    restart: unless-stopped
+
   app:
     build:
       context: .
@@ -92,6 +107,10 @@ services:
       STORAGE_BUCKET: ${STORAGE_BUCKET:-corretoria-listing-photos}
       STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY:-minioadmin}
       STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY:-minioadmin}
+      # Dentro da rede do compose o host do SMTP é o nome do serviço.
+      MAIL_HOST: mail
+      MAIL_PORT: 1025
+      MAIL_FROM: ${MAIL_FROM:-nao-responda@corretoria.app}
     ports:
       - "8080:8080"
     restart: unless-stopped

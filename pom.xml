@@ -118,6 +118,13 @@
             <artifactId>s3</artifactId>
         </dependency>
 
+        <!-- Entrega de notificação por e-mail. Em desenvolvimento o destino é o Mailpit,
+             que aceita qualquer mensagem e não entrega a ninguém. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
         <!-- Observabilidade e documentação -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

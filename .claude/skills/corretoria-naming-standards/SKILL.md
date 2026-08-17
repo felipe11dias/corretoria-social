@@ -81,6 +81,9 @@ O armazenamento de arquivo é `storage` / `StorageService` / `storageKey`; nunca
 `file`, `upload` ou `s3` no nome de artefato de domínio (`s3` só aparece em configuração da
 infraestrutura, sob `corretoria.storage.*`).
 
+O envio de e-mail é `mail` / `MailService` — distinto do VO `Email`, que é o **endereço**.
+Proibidos: `emailSender`, `notifier`, `Mailer`.
+
 Idioma: **nunca misture** português e inglês em um mesmo identificador
 (`UserProprietario`, `salvarUser`, `usuarioRepository` → proibidos).
 
