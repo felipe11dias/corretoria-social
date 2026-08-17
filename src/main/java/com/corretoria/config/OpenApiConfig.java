@@ -55,7 +55,11 @@ import org.springframework.context.annotation.Configuration;
                 @Tag(name = "Autenticação", description = "Emissão de token JWT"),
                 @Tag(name = "Usuários", description = "Cadastro e gestão de usuários"),
                 @Tag(name = "Anúncios",
-                        description = "Publicação e busca de anúncios de imóveis e automóveis")
+                        description = "Publicação e busca de anúncios de imóveis e automóveis"),
+                @Tag(name = "Buscas salvas",
+                        description = "Alerta de anúncio novo e vitrine de anúncios de procura"),
+                @Tag(name = "Notificações",
+                        description = "Avisos in-app do usuário autenticado")
         })
 @SecurityScheme(
         name = OpenApiConfig.BEARER_AUTH,

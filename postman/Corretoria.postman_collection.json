@@ -14,6 +14,8 @@
     { "key": "customerToken", "value": "" },
     { "key": "realtorId", "value": "" },
     { "key": "listingId", "value": "" },
+    { "key": "savedSearchId", "value": "" },
+    { "key": "matchListingId", "value": "" },
     { "key": "runId", "value": "" },
     { "key": "senhaAtual", "value": "senhaSegura123" },
     { "key": "senhaNova", "value": "novaSenha456" }
@@ -1102,6 +1104,399 @@
             "body": { "mode": "raw", "raw": "{\n  \"status\": \"REMOVED\"\n}" },
             "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}", "status"] },
             "description": "Não existe DELETE de anúncio: REMOVED é a aposentadoria, e mantém o histórico de propostas e denúncias que os clusters seguintes vão pendurar nele."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Buscas salvas",
+      "description": "Cluster B da Fase 2. Nada aqui é público — nem a vitrine de procura: uma busca revela o que a pessoa quer, onde e por quanto.\n\nA sequência cria uma busca com o cliente de demonstração, torna-a pública, publica um anúncio que casa com ela (o que dispara a notificação) e limpa tudo no fim.\n\nO casamento é assíncrono: o 201 da publicação volta antes de a notificação existir. Por isso a pasta Notificações não afirma que o aviso chegou — afirma apenas que a listagem responde e que ninguém lê a correspondência alheia.",
+      "item": [
+        {
+          "name": "Cria busca salva privada (201, salva savedSearchId)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('nasce ativa e privada', () => {",
+                  "  pm.expect(body.active).to.be.true;",
+                  "  pm.expect(body.visibility).to.eql('PRIVATE');",
+                  "});",
+                  "pm.test('o dono veio do token', () => pm.expect(body.customer.id).to.be.a('number'));",
+                  "pm.collectionVariables.set('savedSearchId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PROPERTY\",\n  \"visibility\": \"PRIVATE\",\n  \"title\": \"Procuro apartamento na Aldeota\",\n  \"operationType\": \"SALE\",\n  \"maxPrice\": 600000.00,\n  \"city\": \"Fortaleza\",\n  \"state\": \"CE\",\n  \"propertyCriteria\": {\n    \"propertyType\": \"APARTMENT\",\n    \"minBedrooms\": 2\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/saved-searches", "host": ["{{baseUrl}}"], "path": ["api", "v1", "saved-searches"] },
+            "description": "Critério ausente significa \"qualquer valor\" — é a regra do catálogo ao contrário."
+          }
+        },
+        {
+          "name": "Criação por corretor: negado (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type access-denied', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/access-denied'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PROPERTY\",\n  \"visibility\": \"PRIVATE\",\n  \"title\": \"Corretor tentando procurar\",\n  \"city\": \"Fortaleza\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/saved-searches", "host": ["{{baseUrl}}"], "path": ["api", "v1", "saved-searches"] },
+            "description": "Quem oferta não usa a vitrine de procura: corretor publica, cliente procura."
+          }
+        },
+        {
+          "name": "Critérios de veículo em busca de imóvel (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('type invalid-saved-search', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/invalid-saved-search'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PROPERTY\",\n  \"visibility\": \"PRIVATE\",\n  \"title\": \"Imóvel com critério de carro\",\n  \"vehicleCriteria\": { \"brand\": \"Fiat\" }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/saved-searches", "host": ["{{baseUrl}}"], "path": ["api", "v1", "saved-searches"] }
+          }
+        },
+        {
+          "name": "Raio sem coordenada (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('type invalid-saved-search', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/invalid-saved-search'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PROPERTY\",\n  \"visibility\": \"PRIVATE\",\n  \"title\": \"Raio sem centro\",\n  \"radiusKm\": 5\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/saved-searches", "host": ["{{baseUrl}}"], "path": ["api", "v1", "saved-searches"] },
+            "description": "A mesma regra está no CHECK ck_saved_searches_radius_center."
+          }
+        },
+        {
+          "name": "Lista as próprias buscas (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('a busca criada está na lista', () =>",
+                  "  pm.expect(pm.response.json().page.totalElements).to.be.at.least(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/saved-searches", "host": ["{{baseUrl}}"], "path": ["api", "v1", "saved-searches"] }
+          }
+        },
+        {
+          "name": "Vitrine de procura sem token (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+                  "pm.test('type missing-token', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/missing-token'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/saved-searches/public", "host": ["{{baseUrl}}"], "path": ["api", "v1", "saved-searches", "public"] },
+            "description": "Diferente do catálogo de anúncios: procura não é vitrine aberta a visitante anônimo."
+          }
+        },
+        {
+          "name": "Torna a busca pública (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('agora é PUBLIC', () =>",
+                  "  pm.expect(pm.response.json().visibility).to.eql('PUBLIC'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"visibility\": \"PUBLIC\",\n  \"title\": \"Procuro apartamento na Aldeota, 2+ quartos\",\n  \"active\": true,\n  \"operationType\": \"SALE\",\n  \"maxPrice\": 600000.00,\n  \"city\": \"Fortaleza\",\n  \"state\": \"CE\",\n  \"propertyCriteria\": {\n    \"propertyType\": \"APARTMENT\",\n    \"minBedrooms\": 2\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/saved-searches/{{savedSearchId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "saved-searches", "{{savedSearchId}}"] },
+            "description": "O tipo não vai no corpo: é imutável, como no anúncio."
+          }
+        },
+        {
+          "name": "Vitrine de procura como corretor (200, com a busca)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const searches = (pm.response.json()._embedded || {}).savedSearchResponseList || [];",
+                  "const id = pm.collectionVariables.get('savedSearchId');",
+                  "pm.test('a busca pública aparece para o corretor', () =>",
+                  "  pm.expect(searches.map(s => String(s.id))).to.include(String(id)));",
+                  "pm.test('o cliente sai resumido: só id e nome', () => {",
+                  "  const target = searches.find(s => String(s.id) === String(id));",
+                  "  pm.expect(Object.keys(target.customer)).to.have.members(['id', 'name']);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{realtorToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/saved-searches/public?size=100", "host": ["{{baseUrl}}"], "path": ["api", "v1", "saved-searches", "public"], "query": [{ "key": "size", "value": "100" }] },
+            "description": "Mercado reverso: é aqui que o corretor descobre quem está procurando o quê."
+          }
+        },
+        {
+          "name": "Publica anúncio compatível (201, dispara o casamento)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('matchListingId', pm.response.json().id);",
+                  "pm.test('a resposta não espera pelo casamento', () =>",
+                  "  pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PROPERTY\",\n  \"operationType\": \"SALE\",\n  \"title\": \"Apartamento 2 quartos na Aldeota\",\n  \"description\": \"Compatível com a busca salva criada acima.\",\n  \"price\": 520000.00,\n  \"neighborhood\": \"Aldeota\",\n  \"city\": \"Fortaleza\",\n  \"state\": \"CE\",\n  \"latitude\": -3.7330,\n  \"longitude\": -38.5280,\n  \"property\": {\n    \"propertyType\": \"APARTMENT\",\n    \"totalArea\": 75.00,\n    \"bedrooms\": 2,\n    \"bathrooms\": 1\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings"] },
+            "description": "O casamento roda depois do commit e em outra thread. Em desenvolvimento, o e-mail resultante aparece no Mailpit: http://localhost:8025"
+          }
+        },
+        {
+          "name": "Aposenta o anúncio do casamento (200, limpeza)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"REMOVED\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{matchListingId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{matchListingId}}", "status"] }
+          }
+        },
+        {
+          "name": "Edição por quem não é dono: negado (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type access-denied', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/access-denied'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"visibility\": \"PRIVATE\",\n  \"title\": \"Sequestro de busca\",\n  \"active\": false\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/saved-searches/{{savedSearchId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "saved-searches", "{{savedSearchId}}"] },
+            "description": "Barreira de IDOR da busca salva: @savedSearchSecurity.isOwner."
+          }
+        },
+        {
+          "name": "Exclui a busca salva (204, limpeza)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('204 No Content', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/saved-searches/{{savedSearchId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "saved-searches", "{{savedSearchId}}"] },
+            "description": "Remove também os critérios específicos, por cascade."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notificações",
+      "description": "Notificação é correspondência: cada um lê apenas a sua, e não há escopo administrativo.\n\nO casamento com buscas salvas é assíncrono, então esta pasta não afirma que o aviso da pasta anterior já chegou — afirma que a listagem responde, que traz o total de não lidas no cabeçalho e que ninguém alcança a notificação alheia.",
+      "item": [
+        {
+          "name": "Listagem sem token (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+                  "pm.test('type missing-token', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/missing-token'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/notifications", "host": ["{{baseUrl}}"], "path": ["api", "v1", "notifications"] }
+          }
+        },
+        {
+          "name": "Lista as próprias notificações (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('cabeçalho com o total de não lidas', () =>",
+                  "  pm.expect(pm.response.headers.get('X-Corretoria-Unread-Count')).to.match(/^[0-9]+$/));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/notifications", "host": ["{{baseUrl}}"], "path": ["api", "v1", "notifications"] },
+            "description": "O total pendente vai no cabeçalho, não no corpo: o corpo é a página de notificações, e o total não é um item dela."
+          }
+        },
+        {
+          "name": "Notificação de outro usuário: negado (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type access-denied', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/access-denied'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/notifications/999999/read", "host": ["{{baseUrl}}"], "path": ["api", "v1", "notifications", "999999", "read"] },
+            "description": "Feito com o token de administrador de propósito: correspondência não tem supervisor. Id inexistente também responde 403, e não 404 — quem não é destinatário não descobre nem se a notificação existe."
           }
         }
       ]
