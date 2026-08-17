@@ -32,6 +32,7 @@ public class ArchitectureTest {
     private static final String MAPPER = "..mapper..";
     private static final String VO = "..vo..";
     private static final String UTIL = "..util..";
+    private static final String EVENT = "..event..";
     private static final String SECURITY = "..security..";
     private static final String CONFIG = "..config..";
 
@@ -180,6 +181,30 @@ public class ArchitectureTest {
                     resideInAPackage("com.corretoria..").and(not(resideInAPackage(UTIL))))
             .as("Utilitário é folha: com.corretoria.util não depende de nenhum outro pacote do "
                     + "projeto, evitando ciclo");
+
+    // ------------------------------------------------------------------ eventos
+
+    @ArchTest
+    static final ArchRule eventoEhRecord = classes()
+            .that().resideInAPackage(EVENT)
+            .should().beRecords()
+            .as("Evento de domínio é um record imutável: o fato já aconteceu, e o que aconteceu "
+                    + "não se edita");
+
+    @ArchTest
+    static final ArchRule eventoCarregaIdentificador = noClasses()
+            .that().resideInAPackage(EVENT)
+            .should().dependOnClassesThat(
+                    resideInAPackage("com.corretoria..").and(not(resideInAPackage(EVENT))))
+            .as("Evento carrega identificador, não objeto: entidade dentro do evento viajaria "
+                    + "desanexada para outra thread e outra transação. Quem consome relê o "
+                    + "estado atual pelo id");
+
+    @ArchTest
+    static final ArchRule eventoNoPacoteEvent = classes()
+            .that().haveSimpleNameEndingWith("Event")
+            .should().resideInAPackage(EVENT)
+            .as("Classe terminada em Event mora em com.corretoria.event");
 
     // ------------------------------------------------------------------ ciclos
 

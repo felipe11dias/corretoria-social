@@ -83,6 +83,15 @@ public class GlobalExceptionHandler {
                 exception.getMessage(), request);
     }
 
+    /** Ver {@link #handleInvalidListing}: mesma distinção, aplicada à busca salva. */
+    @ExceptionHandler(InvalidSavedSearchException.class)
+    public ProblemDetail handleInvalidSavedSearch(
+            InvalidSavedSearchException exception, HttpServletRequest request) {
+
+        return build(HttpStatus.BAD_REQUEST, ProblemType.INVALID_SAVED_SEARCH,
+                exception.getMessage(), request);
+    }
+
     @ExceptionHandler(InvalidPasswordException.class)
     public ProblemDetail handleInvalidPassword(
             InvalidPasswordException exception, HttpServletRequest request) {

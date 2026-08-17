@@ -28,4 +28,12 @@ public class ResourceNotFoundException extends RuntimeException {
     public static ResourceNotFoundException listingPhoto(Long id) {
         return new ResourceNotFoundException("Foto não encontrada: " + id);
     }
+
+    public static ResourceNotFoundException savedSearch(Long id) {
+        return new ResourceNotFoundException("Busca salva não encontrada: " + id);
+    }
+
+    public static ResourceNotFoundException notification(Long id) {
+        return new ResourceNotFoundException("Notificação não encontrada: " + id);
+    }
 }

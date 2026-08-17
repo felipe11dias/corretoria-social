@@ -25,6 +25,11 @@ public class ForbiddenOperationException extends RuntimeException {
                 "Apenas usuários com o papel ROLE_REALTOR publicam anúncios");
     }
 
+    public static ForbiddenOperationException customerRoleRequired() {
+        return new ForbiddenOperationException(
+                "Apenas usuários com o papel ROLE_CUSTOMER criam buscas salvas");
+    }
+
     /**
      * Consulta de anúncio fora do ar por quem não é o dono.
      *

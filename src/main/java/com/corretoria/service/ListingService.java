@@ -10,6 +10,7 @@ import com.corretoria.enums.OperationType;
 import com.corretoria.enums.RoleName;
 import com.corretoria.exception.ForbiddenOperationException;
 import com.corretoria.exception.InvalidListingException;
+import com.corretoria.event.ListingPublishedEvent;
 import com.corretoria.exception.ResourceNotFoundException;
 import com.corretoria.mapper.ListingMapper;
 import com.corretoria.repository.ListingRepository;
@@ -25,6 +26,7 @@ import com.corretoria.vo.v1.request.PropertyRequest;
 import com.corretoria.vo.v1.request.VehicleRequest;
 import com.corretoria.vo.v1.response.ListingPhotoResponse;
 import com.corretoria.vo.v1.response.ListingResponse;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
@@ -49,16 +51,19 @@ public class ListingService {
     private final ListingMapper listingMapper;
     private final StorageService storageService;
     private final UserSecurity userSecurity;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ListingService(
             ListingRepository listingRepository,
             ListingMapper listingMapper,
             StorageService storageService,
-            UserSecurity userSecurity) {
+            UserSecurity userSecurity,
+            ApplicationEventPublisher eventPublisher) {
         this.listingRepository = listingRepository;
         this.listingMapper = listingMapper;
         this.storageService = storageService;
         this.userSecurity = userSecurity;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -66,6 +71,11 @@ public class ListingService {
      *
      * <p>A publicação é imediata, sem fila de aprovação — mesma confiança já dada ao
      * autocadastro de usuários. O contrapeso é a denúncia, no Cluster E.
+     *
+     * <p>Ao final, anuncia o fato ({@code ListingPublishedEvent}) em vez de chamar o casamento
+     * com buscas salvas: publicar continua sendo publicar, e quem quiser reagir se inscreve. O
+     * evento só é entregue depois do commit, e quem o consome trabalha em outra thread — o
+     * corretor não espera pelo trabalho de notificar terceiros.
      */
     @Transactional
     public ListingResponse publish(
@@ -79,7 +89,10 @@ public class ListingService {
         Listing listing = listingMapper.toEntity(request);
         listing.setRealtor(realtor);
 
-        return toResponse(listingRepository.save(listing));
+        Listing published = listingRepository.save(listing);
+        eventPublisher.publishEvent(new ListingPublishedEvent(published.getId()));
+
+        return toResponse(published);
     }
 
     /**
