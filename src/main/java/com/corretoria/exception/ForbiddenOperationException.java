@@ -30,6 +30,23 @@ public class ForbiddenOperationException extends RuntimeException {
                 "Apenas usuários com o papel ROLE_CUSTOMER criam buscas salvas");
     }
 
+    public static ForbiddenOperationException realtorCanOnlyProposeOwnListing() {
+        return new ForbiddenOperationException(
+                "O corretor só propõe os próprios anúncios: para negociar o anúncio de "
+                        + "outro corretor, é preciso ser cliente");
+    }
+
+    /** Aceitar e recusar são de quem recebeu a proposta, nunca de quem a fez. */
+    public static ForbiddenOperationException onlyCounterpartyCanDecide() {
+        return new ForbiddenOperationException(
+                "Aceitar ou recusar é da contraparte; quem propôs pode retirar");
+    }
+
+    public static ForbiddenOperationException onlyInitiatorCanWithdraw() {
+        return new ForbiddenOperationException(
+                "Retirar a proposta é de quem a fez; a contraparte aceita ou recusa");
+    }
+
     /**
      * Consulta de anúncio fora do ar por quem não é o dono.
      *

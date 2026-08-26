@@ -36,4 +36,8 @@ public class ResourceNotFoundException extends RuntimeException {
     public static ResourceNotFoundException notification(Long id) {
         return new ResourceNotFoundException("Notificação não encontrada: " + id);
     }
+
+    public static ResourceNotFoundException proposal(Long id) {
+        return new ResourceNotFoundException("Proposta não encontrada: " + id);
+    }
 }

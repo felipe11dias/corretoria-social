@@ -20,6 +20,7 @@ public enum ProblemType {
     INVALID_FIELD_FORMAT("invalid-field-format", "Requisição inválida"),
     INVALID_LISTING("invalid-listing", "Anúncio inválido"),
     INVALID_SAVED_SEARCH("invalid-saved-search", "Busca salva inválida"),
+    INVALID_PROPOSAL("invalid-proposal", "Proposta inválida"),
     INVALID_PASSWORD("invalid-password", "Senha inválida"),
     AUTHENTICATION_FAILED("authentication-failed", "Falha na autenticação"),
     MISSING_TOKEN("missing-token", "Não autenticado"),

@@ -83,6 +83,15 @@ public class GlobalExceptionHandler {
                 exception.getMessage(), request);
     }
 
+    /** Ver {@link #handleInvalidListing}: mesma distinção, aplicada à negociação. */
+    @ExceptionHandler(InvalidProposalException.class)
+    public ProblemDetail handleInvalidProposal(
+            InvalidProposalException exception, HttpServletRequest request) {
+
+        return build(HttpStatus.BAD_REQUEST, ProblemType.INVALID_PROPOSAL,
+                exception.getMessage(), request);
+    }
+
     /** Ver {@link #handleInvalidListing}: mesma distinção, aplicada à busca salva. */
     @ExceptionHandler(InvalidSavedSearchException.class)
     public ProblemDetail handleInvalidSavedSearch(
