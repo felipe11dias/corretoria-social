@@ -15,6 +15,9 @@ A **Fase 2** está em execução e constrói o domínio sobre essa fundação:
 - **Cluster B — busca salva e notificações:** clientes salvam critérios de procura e são
   avisados quando um anúncio compatível é publicado; a procura pode ser pública, virando um
   **anúncio de procura** que os corretores consultam — o mercado reverso da plataforma.
+- **Cluster C — negociação:** propostas estruturadas nas duas direções, com thread de mensagens
+  por proposta — o cliente propõe sobre um anúncio, o corretor propõe a partir de uma procura
+  pública.
 
 > Relatório técnico da Fase 1 (decisões, justificativas e histórico de cada etapa):
 > [`relatorio-corretoria-v1_0.md`](docs/relatorios/relatorio-corretoria-v1_0.md).
@@ -56,6 +59,10 @@ Um mesmo usuário pode acumular papéis — eles vivem em tabela associativa, n�
 | Ver a vitrine de anúncios de procura | ✅ | ✅ | ✅ |
 | Editar / excluir **a própria** busca salva | — | ✅ | ✅ (qualquer) |
 | Ler / marcar como lida **a própria** notificação | ✅ | ✅ | ✅ (só as suas) |
+| Propor sobre um anúncio | ❌ | ✅ | ❌ |
+| Propor a partir de uma procura pública | ✅ (só o próprio anúncio) | ❌ | ❌ |
+| Aceitar, recusar ou retirar proposta | ✅ (a que participa) | ✅ (a que participa) | ❌ |
+| Escrever no thread da proposta | ✅ (a que participa) | ✅ (a que participa) | ❌ |
 
 ---
 
@@ -317,6 +324,40 @@ SMTP fora do ar vira `warn` no log e não faz o usuário perder o registro.
 commit*, em outra thread: o corretor recebe o `201` sem esperar pela varredura das buscas
 salvas. Em desenvolvimento, o e-mail resultante aparece em `http://localhost:8025`.
 
+
+### Propostas
+
+| Método | Rota | Descrição | Sucesso | Autorização |
+|--------|------|-----------|---------|-------------|
+| `POST` | `/api/v1/proposals` | Abre uma negociação | `201` + `Location` | Autenticado |
+| `GET` | `/api/v1/proposals` | Lista as próprias negociações | `200` | Autenticado |
+| `GET` | `/api/v1/proposals/{id}` | Abre a negociação com o thread | `200` | **Só participantes** |
+| `PATCH` | `/api/v1/proposals/{id}/status` | Aceita, recusa ou retira | `200` | **Só participantes** |
+| `POST` | `/api/v1/proposals/{id}/messages` | Escreve no thread | `201` | **Só participantes** |
+
+A proposta é **bidirecional**, e a direção **não vem no corpo** — é deduzida de quem está
+autenticado:
+
+- **quem chama não é o dono do anúncio** → é o cliente propondo sobre o catálogo (exige
+  `ROLE_CUSTOMER`, e `savedSearchId` é proibido);
+- **quem chama é o dono do anúncio** → é o corretor abordando um cliente, e `savedSearchId`
+  passa a ser **obrigatório**: é a busca pública que diz a quem a proposta se destina e o que
+  autoriza a abordagem.
+
+Deduzir em vez de perguntar elimina a possibilidade de alguém se declarar do lado errado da
+mesa. Só anúncio `ACTIVE` aceita proposta, e ninguém negocia consigo mesmo — a checagem importa
+porque um mesmo usuário pode acumular os dois papéis.
+
+**Quem decide o quê:** aceitar e recusar são da **contraparte**; retirar é de **quem propôs**.
+Os três desfechos valem apenas a partir de `PENDING` e são definitivos — retomar é abrir uma
+proposta nova. O link `status` some da resposta assim que a proposta é decidida.
+
+**Não existe estado de contraproposta:** contrapor é escrever no thread sugerindo outro valor.
+O thread continua aberto depois do desfecho, porque combinar detalhes de uma proposta aceita é
+conversa legítima.
+
+Cada passo notifica o outro lado (`NEW_PROPOSAL`, `PROPOSAL_STATUS_CHANGED`,
+`NEW_PROPOSAL_MESSAGE`) — in-app e por e-mail, pelo mesmo caminho do Cluster B.
 ### Erros
 
 Todas as respostas de erro seguem **ProblemDetail (RFC 7807)**:
@@ -332,7 +373,7 @@ Todas as respostas de erro seguem **ProblemDetail (RFC 7807)**:
 }
 ```
 
-O campo **`type`** é o que distingue erros que compartilham o mesmo status — há cinco casos de
+O campo **`type`** é o que distingue erros que compartilham o mesmo status — há seis casos de
 `400` e dois de `403`:
 
 | `type` | Status | Quando |
@@ -341,6 +382,7 @@ O campo **`type`** é o que distingue erros que compartilham o mesmo status — 
 | `/problems/invalid-field-format` | 400 | Invariante de VO violada, ou critérios de busca incoerentes |
 | `/problems/invalid-listing` | 400 | Campos válidos, combinação inexistente no domínio (detalhamento fora do tipo, aluguel de veículo, limite de fotos) |
 | `/problems/invalid-saved-search` | 400 | Idem, na busca salva (critérios fora do tipo, raio sem coordenada, faixa de preço invertida) |
+| `/problems/invalid-proposal` | 400 | Idem, na negociação (anúncio fora do ar, proposta já decidida, origem incoerente com a direção) |
 | `/problems/invalid-password` | 400 | Senha atual incorreta ou confirmação divergente |
 | `/problems/authentication-failed` | 401 | Credenciais inválidas |
 | `/problems/missing-token` | 401 | Token ausente, expirado ou inválido |
@@ -369,12 +411,12 @@ catálogo de anúncios são públicos.
 ## Coleção Postman
 
 [`postman/Corretoria.postman_collection.json`](postman/Corretoria.postman_collection.json)
-(formato v2.1), com 55 requisições em cinco pastas: **Autenticação**, **Usuários**,
-**Anúncios**, **Buscas salvas** e **Notificações**.
+(formato v2.1), com 64 requisições em seis pastas: **Autenticação**, **Usuários**,
+**Anúncios**, **Buscas salvas**, **Notificações** e **Propostas**.
 
 **Como usar:** importe no Postman e execute **de cima para baixo**, ou rode a coleção inteira
 no *Runner*. Os scripts de teste populam `{{adminToken}}`, `{{realtorToken}}`,
-`{{customerToken}}`, `{{userId}}`, `{{listingId}}`, `{{savedSearchId}}` e `{{token}}`
+`{{customerToken}}`, `{{userId}}`, `{{listingId}}`, `{{savedSearchId}}`, `{{proposalId}}` e `{{token}}`
 automaticamente — nada precisa ser preenchido à mão. Ajuste `{{baseUrl}}` se a API não estiver
 em `http://localhost:8080`.
 
@@ -401,6 +443,10 @@ Além do caminho feliz, a coleção cobre os cenários que provam as regras:
   nenhum: as duas aberturas são deliberadamente diferentes;
 - **notificação alheia com token de administrador → `403`**, que fixa a ausência de escopo
   administrativo sobre correspondência.
+- **quem propôs tentando aceitar a própria proposta → `403`**, seguido da contraparte aceitando
+  → `200`, e da segunda decisão sobre a mesma proposta → `400 invalid-proposal`;
+- **thread de proposta aberto com token de administrador → `403`**, que fixa que negociação não
+  tem plateia.
 
 A publicação de um anúncio compatível com a busca salva fica na pasta **Buscas salvas** e
 dispara o casamento. Como ele é **assíncrono**, a coleção não afirma que a notificação já
@@ -422,7 +468,7 @@ curl -H "Authorization: Bearer $TOKEN" -F "photo=@fachada.jpg" \
 ./mvnw test
 ```
 
-222 testes. A suíte cobre:
+247 testes. A suíte cobre:
 
 | Frente | O que garante |
 |--------|---------------|
@@ -435,6 +481,8 @@ curl -H "Authorization: Bearer $TOKEN" -F "photo=@fachada.jpg" \
 | `ListingMatchingServiceTest` | notifica cada dono de busca compatível e para quando o anúncio já não existe |
 | `NotificationServiceTest` | aviso in-app sobrevive à falha de SMTP |
 | `SavedSearchControllerTest`, `NotificationControllerTest` | nada na busca salva é público; notificação não tem supervisor |
+| `ProposalServiceTest` | as duas direções de iniciação, invariantes da negociação e quem pode cada desfecho |
+| `ProposalControllerTest` | thread fechado aos dois participantes, sem escopo administrativo |
 | `GlobalExceptionHandlerTest` | pares status/`type` do contrato de erro |
 | `JwtServiceTest`, `UserSecurityTest`, `ListingSecurityTest`, `AuthenticationServiceTest` | token e autorização por posse |
 | `EmailTest`, `ZipCodeTest`, `PhotoContentTest`, `TextUtilsTest`, `ObjectUtilsTest` | invariantes e normalização |
@@ -470,18 +518,18 @@ corretoria/
 ├── postman/                 # coleção da API
 ├── src/main/java/com/corretoria/
 │   ├── config/              # SecurityConfig, StorageConfig, MailConfig, AsyncConfig, OpenApiConfig, ClockConfig, JpaAuditingConfig
-│   ├── controller/          # AuthController, UserController, ListingController, SavedSearchController, NotificationController, assemblers
-│   ├── entity/              # Auditable, User, Role, Address, PasswordResetToken, Listing, Property, Vehicle, ListingPhoto, SavedSearch, critérios, Notification
+│   ├── controller/          # AuthController, UserController, ListingController, SavedSearchController, NotificationController, ProposalController, assemblers
+│   ├── entity/              # Auditable, User, Role, Address, PasswordResetToken, Listing, Property, Vehicle, ListingPhoto, SavedSearch, critérios, Notification, Proposal, ProposalMessage
 │   ├── enums/               # RoleName e os enums do anúncio, da busca salva e da notificação
 │   ├── event/               # ListingPublishedEvent — fatos de domínio, sempre records com id
 │   ├── exception/           # exceções de domínio, ProblemType, GlobalExceptionHandler
-│   ├── mapper/              # UserMapper, AddressMapper, ListingMapper, SavedSearchMapper, NotificationMapper (MapStruct)
+│   ├── mapper/              # UserMapper, AddressMapper, ListingMapper, SavedSearchMapper, NotificationMapper, ProposalMapper (MapStruct)
 │   ├── repository/          # Spring Data JPA
-│   ├── security/            # JWT, UserSecurity, ListingSecurity, SavedSearchSecurity, NotificationSecurity, auditoria
+│   ├── security/            # JWT e os beans de posse: UserSecurity, ListingSecurity, SavedSearchSecurity, NotificationSecurity, ProposalSecurity
 │   ├── service/             # regras de negócio + portas de infraestrutura (StorageService, MailService)
 │   ├── util/                # TextUtils, ObjectUtils
 │   └── vo/                  # shared (Email, ZipCode, PhotoContent) e v1 (request/response)
-├── src/main/resources/db/migration/   # V1 a V7 (Flyway)
+├── src/main/resources/db/migration/   # V1 a V8 (Flyway)
 └── src/test/java/com/corretoria/
 ```
 

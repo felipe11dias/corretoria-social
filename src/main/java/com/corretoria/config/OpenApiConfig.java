@@ -59,7 +59,9 @@ import org.springframework.context.annotation.Configuration;
                 @Tag(name = "Buscas salvas",
                         description = "Alerta de anúncio novo e vitrine de anúncios de procura"),
                 @Tag(name = "Notificações",
-                        description = "Avisos in-app do usuário autenticado")
+                        description = "Avisos in-app do usuário autenticado"),
+                @Tag(name = "Propostas",
+                        description = "Negociação entre cliente e corretor")
         })
 @SecurityScheme(
         name = OpenApiConfig.BEARER_AUTH,

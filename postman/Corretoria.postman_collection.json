@@ -16,6 +16,8 @@
     { "key": "listingId", "value": "" },
     { "key": "savedSearchId", "value": "" },
     { "key": "matchListingId", "value": "" },
+    { "key": "negotiationListingId", "value": "" },
+    { "key": "proposalId", "value": "" },
     { "key": "runId", "value": "" },
     { "key": "senhaAtual", "value": "senhaSegura123" },
     { "key": "senhaNova", "value": "novaSenha456" }
@@ -1497,6 +1499,254 @@
             "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
             "url": { "raw": "{{baseUrl}}/api/v1/notifications/999999/read", "host": ["{{baseUrl}}"], "path": ["api", "v1", "notifications", "999999", "read"] },
             "description": "Feito com o token de administrador de propósito: correspondência não tem supervisor. Id inexistente também responde 403, e não 404 — quem não é destinatário não descobre nem se a notificação existe."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Propostas",
+      "description": "Cluster C da Fase 2. A direção da proposta é deduzida de quem está autenticado, nunca informada no corpo.\n\nA sequência publica um anúncio do corretor, faz o cliente propor sobre ele, prova que quem propôs não pode aceitar a própria proposta, deixa a contraparte aceitar, escreve no thread e limpa o anúncio no fim.",
+      "item": [
+        {
+          "name": "Corretor publica anúncio para negociar (201, salva negotiationListingId)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('negotiationListingId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PROPERTY\",\n  \"operationType\": \"SALE\",\n  \"title\": \"Casa no Cocó para negociar\",\n  \"description\": \"Anuncio usado pela pasta de propostas.\",\n  \"price\": 750000.00,\n  \"neighborhood\": \"Coco\",\n  \"city\": \"Fortaleza\",\n  \"state\": \"CE\",\n  \"latitude\": -3.7420,\n  \"longitude\": -38.4800,\n  \"property\": {\n    \"propertyType\": \"HOUSE\",\n    \"totalArea\": 180.00,\n    \"bedrooms\": 4,\n    \"bathrooms\": 3\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings"] }
+          }
+        },
+        {
+          "name": "Cliente propõe sobre o anúncio (201, salva proposalId)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('direção deduzida do token: iniciada pelo cliente', () =>",
+                  "  pm.expect(body.initiator).to.eql('CUSTOMER'));",
+                  "pm.test('nasce PENDING e sem busca de origem', () => {",
+                  "  pm.expect(body.status).to.eql('PENDING');",
+                  "  pm.expect(body.originSavedSearchId).to.be.null;",
+                  "});",
+                  "pm.test('enquanto pendente, o link de desfecho existe', () =>",
+                  "  pm.expect(body._links.status.href).to.be.a('string'));",
+                  "pm.collectionVariables.set('proposalId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"listingId\": {{negotiationListingId}},\n  \"amount\": 700000.00\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/proposals", "host": ["{{baseUrl}}"], "path": ["api", "v1", "proposals"] },
+            "description": "O corpo não diz quem propõe: quem chama não é o dono do anúncio, logo é o cliente."
+          }
+        },
+        {
+          "name": "Quem propôs tentando aceitar: negado (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type forbidden-operation', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/forbidden-operation'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"ACCEPTED\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/proposals/{{proposalId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "v1", "proposals", "{{proposalId}}", "status"] },
+            "description": "Aceitar é da contraparte. Sem essa separação, propor e aceitar seriam a mesma ação."
+          }
+        },
+        {
+          "name": "Terceiro tentando abrir o thread: negado (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type access-denied', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/access-denied'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/proposals/{{proposalId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "proposals", "{{proposalId}}"] },
+            "description": "Com o token de administrador de propósito: negociação não tem plateia."
+          }
+        },
+        {
+          "name": "Corretor aceita a proposta (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('aceita', () => pm.expect(body.status).to.eql('ACCEPTED'));",
+                  "pm.test('decidida, o link de desfecho some', () =>",
+                  "  pm.expect(body._links.status).to.be.undefined);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"ACCEPTED\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/proposals/{{proposalId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "v1", "proposals", "{{proposalId}}", "status"] }
+          }
+        }
+,
+        {
+          "name": "Segunda decisão sobre a mesma proposta (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('type invalid-proposal', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/invalid-proposal'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"REJECTED\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/proposals/{{proposalId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "v1", "proposals", "{{proposalId}}", "status"] },
+            "description": "Os três desfechos são definitivos: retomar é abrir uma proposta nova."
+          }
+        },
+        {
+          "name": "Cliente escreve no thread (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('a mensagem volta com id e autor', () => {",
+                  "  pm.expect(body.id).to.be.a('number');",
+                  "  pm.expect(body.author.id).to.be.a('number');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"content\": \"Combinado. Podemos assinar na proxima semana?\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/proposals/{{proposalId}}/messages", "host": ["{{baseUrl}}"], "path": ["api", "v1", "proposals", "{{proposalId}}", "messages"] },
+            "description": "O thread continua aberto depois do desfecho: combinar detalhes de uma proposta aceita é conversa legítima. Contraproposta seria uma mensagem sugerindo outro valor."
+          }
+        },
+        {
+          "name": "Minhas negociações (200, thread incluído)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const proposals = (pm.response.json()._embedded || {}).proposalResponseList || [];",
+                  "const id = pm.collectionVariables.get('proposalId');",
+                  "const target = proposals.find(p => String(p.id) === String(id));",
+                  "pm.test('a proposta aparece para o corretor', () => pm.expect(target).to.not.be.undefined);",
+                  "pm.test('com a mensagem no thread', () => pm.expect(target.messages.length).to.be.at.least(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{realtorToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/proposals?size=50", "host": ["{{baseUrl}}"], "path": ["api", "v1", "proposals"], "query": [{ "key": "size", "value": "50" }] },
+            "description": "Uma lista só, com os dois papéis: aqui o usuário aparece como corretor dono do anúncio."
+          }
+        },
+        {
+          "name": "Aposenta o anúncio da negociação (200, limpeza)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"COMPLETED\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{negotiationListingId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{negotiationListingId}}", "status"] },
+            "description": "COMPLETED, e não REMOVED: o negócio saiu. É sinalização do corretor, sem registro de transação."
           }
         }
       ]
