@@ -53,10 +53,14 @@ public class RealtorFollowService {
         ensureCustomerRole(customer);
         ensureDistinctParties(customer, realtorId);
 
-        return realtorFollowRepository
+        // O Optional aqui é de entidade, e o mapeamento vem depois de propósito: encadear
+        // map(...).orElseGet(...) faria a criação disparar também quando o mapeamento
+        // devolvesse null, porque map colapsa null em vazio. Um teste flagrou exatamente isso.
+        RealtorFollow follow = realtorFollowRepository
                 .findByCustomerIdAndRealtorId(customer.getId(), realtorId)
-                .map(socialMapper::toResponse)
                 .orElseGet(() -> startFollowing(customer, realtorId));
+
+        return socialMapper.toResponse(follow);
     }
 
     @Transactional
@@ -81,7 +85,8 @@ public class RealtorFollowService {
         return realtorFollowRepository.countByRealtorId(realtorId);
     }
 
-    private RealtorFollowResponse startFollowing(User customer, Long realtorId) {
+    /** Cria o vínculo e avisa o corretor — o aviso só existe aqui, no nascimento. */
+    private RealtorFollow startFollowing(User customer, Long realtorId) {
         User realtor = userRepository.findById(realtorId)
                 .orElseThrow(() -> ResourceNotFoundException.user(realtorId));
 
@@ -93,7 +98,7 @@ public class RealtorFollowService {
         notificationService.notify(realtor, NotificationType.NEW_FOLLOWER,
                 "%s começou a acompanhar você.".formatted(customer.getName()));
 
-        return socialMapper.toResponse(saved);
+        return saved;
     }
 
     private void ensureDistinctParties(User customer, Long realtorId) {

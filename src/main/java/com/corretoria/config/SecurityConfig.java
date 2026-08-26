@@ -34,9 +34,21 @@ public class SecurityConfig {
             "/actuator/info"
     };
 
-    private static final String[] LISTING_CATALOG_ENDPOINTS = {
+    /**
+     * Leitura pública da Fase 2.
+     *
+     * <p>Três vitrines: o catálogo de anúncios, o mural do corretor e a reputação dele. As
+     * três são o que alguém consulta <em>antes</em> de decidir criar conta — reputação que só
+     * o dono enxerga não ajuda ninguém a escolher com quem negociar.
+     *
+     * <p>A vitrine de <em>procura</em> (buscas salvas públicas) ficou deliberadamente de fora:
+     * ela revela o que uma pessoa quer, onde e por quanto.
+     */
+    private static final String[] PUBLIC_GET_ENDPOINTS = {
             "/api/v1/listings",
-            "/api/v1/listings/*"
+            "/api/v1/listings/*",
+            "/api/v1/realtors/*/posts",
+            "/api/v1/realtors/*/reviews"
     };
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
@@ -62,11 +74,11 @@ public class SecurityConfig {
                         // Apenas o POST é público: é o autocadastro. GET, PUT e DELETE em
                         // /users exigem token, e o escopo é decidido por @PreAuthorize.
                         .requestMatchers(HttpMethod.POST, "/api/v1/users").permitAll()
-                        // O catálogo de anúncios é vitrine: qualquer visitante lista e abre um
-                        // anúncio sem token. Só a leitura — publicar, editar, pausar e mexer
-                        // nas fotos continuam exigindo autenticação e posse, decididas por
-                        // @PreAuthorize no ListingController.
-                        .requestMatchers(HttpMethod.GET, LISTING_CATALOG_ENDPOINTS).permitAll()
+                        // As vitrines são leitura livre: qualquer visitante lista e abre um
+                        // anúncio, o mural e a reputação sem token. Só a leitura — publicar,
+                        // editar, curtir e avaliar continuam exigindo autenticação e posse,
+                        // decididas por @PreAuthorize em cada controller.
+                        .requestMatchers(HttpMethod.GET, PUBLIC_GET_ENDPOINTS).permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(handling ->
                         handling.authenticationEntryPoint(authenticationEntryPoint))

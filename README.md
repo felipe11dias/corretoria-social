@@ -18,6 +18,8 @@ A **Fase 2** está em execução e constrói o domínio sobre essa fundação:
 - **Cluster C — negociação:** propostas estruturadas nas duas direções, com thread de mensagens
   por proposta — o cliente propõe sobre um anúncio, o corretor propõe a partir de uma procura
   pública.
+- **Cluster D — social:** reputação do corretor condicionada a negociação real, favoritos,
+  acompanhar corretor e mural com comentários e curtidas.
 
 > Relatório técnico da Fase 1 (decisões, justificativas e histórico de cada etapa):
 > [`relatorio-corretoria-v1_0.md`](docs/relatorios/relatorio-corretoria-v1_0.md).
@@ -33,7 +35,7 @@ A **Fase 2** está em execução e constrói o domínio sobre essa fundação:
 | **Corretor** | `ROLE_REALTOR` | Gerencia o próprio cadastro e **publica anúncios** de imóveis e automóveis |
 | **Cliente** | `ROLE_CUSTOMER` | Gerencia o próprio cadastro e **busca** no catálogo; nunca oferta |
 | **Administrador** | `ROLE_ADMIN` | Consulta, busca, lista, atualiza e remove **qualquer** usuário ou anúncio |
-| **Visitante** | — | Lista e abre anúncios do catálogo, sem token |
+| **Visitante** | — | Lista e abre anúncios, lê o mural e a reputação dos corretores, sem token |
 
 Um mesmo usuário pode acumular papéis — eles vivem em tabela associativa, não em coluna enum.
 
@@ -63,6 +65,11 @@ Um mesmo usuário pode acumular papéis — eles vivem em tabela associativa, n�
 | Propor a partir de uma procura pública | ✅ (só o próprio anúncio) | ❌ | ❌ |
 | Aceitar, recusar ou retirar proposta | ✅ (a que participa) | ✅ (a que participa) | ❌ |
 | Escrever no thread da proposta | ✅ (a que participa) | ✅ (a que participa) | ❌ |
+| Favoritar anúncio / acompanhar corretor | ❌ | ✅ | ❌ |
+| Avaliar corretor (após negociar) | ❌ | ✅ | ❌ |
+| Publicar no **próprio** mural | ✅ | ❌ | ❌ |
+| Comentar / curtir publicação | ✅ | ✅ | ✅ |
+| Ler mural e reputação (também sem token) | ✅ | ✅ | ✅ |
 
 ---
 
@@ -358,6 +365,42 @@ conversa legítima.
 
 Cada passo notifica o outro lado (`NEW_PROPOSAL`, `PROPOSAL_STATUS_CHANGED`,
 `NEW_PROPOSAL_MESSAGE`) — in-app e por e-mail, pelo mesmo caminho do Cluster B.
+
+### Camada social
+
+| Método | Rota | Descrição | Sucesso | Autorização |
+|--------|------|-----------|---------|-------------|
+| `PUT` | `/api/v1/realtors/{id}/reviews` | Avalia o corretor | `200` | `ROLE_CUSTOMER` que negociou |
+| `GET` | `/api/v1/realtors/{id}/reviews` | Lista as avaliações | `200` | **Pública** |
+| `PUT` / `DELETE` | `/api/v1/listings/{id}/favorite` | Marca / desmarca favorito | `200` / `204` | `ROLE_CUSTOMER` |
+| `GET` | `/api/v1/favorites` | Lista os próprios favoritos | `200` | `ROLE_CUSTOMER` |
+| `PUT` / `DELETE` | `/api/v1/realtors/{id}/follow` | Passa / deixa de acompanhar | `200` / `204` | `ROLE_CUSTOMER` |
+| `GET` | `/api/v1/follows` | Lista os corretores que acompanha | `200` | `ROLE_CUSTOMER` |
+| `POST` | `/api/v1/realtors/{id}/posts` | Publica no próprio mural | `201` | Dono do mural |
+| `GET` | `/api/v1/realtors/{id}/posts` | Lista o mural | `200` | **Pública** |
+| `POST` | `/api/v1/posts/{id}/comments` | Comenta uma publicação | `201` | Autenticado |
+| `PUT` / `DELETE` | `/api/v1/posts/{id}/like` | Curte / descurte | `200` | Autenticado |
+
+**A avaliação é *gated* por interação real:** só avalia quem já negociou com aquele corretor —
+basta a proposta ter existido, sem precisar ter sido aceita, porque um corretor que sumiu
+depois de receber a proposta também merece ser avaliado. É o análogo da "compra verificada", e
+tem `type` próprio (`/problems/review-not-allowed`) porque não é acesso negado: a porta se abre
+sozinha assim que houver negociação.
+
+O verbo é `PUT`, não `POST`: **uma avaliação por par** corretor/cliente, e avaliar de novo
+substitui a nota. Não há histórico — o que a plataforma publica é a opinião atual de cada
+cliente. O cabeçalho `X-Corretoria-Average-Score` traz a média de **todas** as avaliações, e
+não só das que couberam na página.
+
+**Favoritar, acompanhar e curtir são idempotentes** (`PUT`/`DELETE`, sem `POST`): o recurso é a
+relação entre quem chama e o que está na rota — existe ou não existe. Repetir a chamada depois
+de uma falha de rede não vira `409`, e o `UNIQUE` no banco garante o que a interface promete:
+uma curtida por pessoa, e não um contador que sobe a cada clique.
+
+**Quem pode o quê:** favoritar, acompanhar e avaliar são do cliente — são formas de marcar
+interesse, e não fazem sentido para quem oferta. Já **comentar e curtir são de qualquer usuário
+autenticado**, inclusive de outro corretor: conversa de mural é pública, ao contrário do thread
+de uma proposta.
 ### Erros
 
 Todas as respostas de erro seguem **ProblemDetail (RFC 7807)**:
@@ -374,7 +417,7 @@ Todas as respostas de erro seguem **ProblemDetail (RFC 7807)**:
 ```
 
 O campo **`type`** é o que distingue erros que compartilham o mesmo status — há seis casos de
-`400` e dois de `403`:
+`400` e três de `403`:
 
 | `type` | Status | Quando |
 |--------|-------:|--------|
@@ -387,6 +430,7 @@ O campo **`type`** é o que distingue erros que compartilham o mesmo status — 
 | `/problems/authentication-failed` | 401 | Credenciais inválidas |
 | `/problems/missing-token` | 401 | Token ausente, expirado ou inválido |
 | `/problems/forbidden-operation` | 403 | Operação proibida em si (ex.: autocadastro pedindo `ROLE_ADMIN`) |
+| `/problems/review-not-allowed` | 403 | Avaliação sem negociação prévia — a porta se abre sozinha depois da primeira proposta |
 | `/problems/access-denied` | 403 | Recurso de outro usuário |
 | `/problems/resource-not-found` | 404 | Id inexistente |
 | `/problems/duplicate-resource` | 409 | E-mail ou login já cadastrado |
@@ -468,7 +512,7 @@ curl -H "Authorization: Bearer $TOKEN" -F "photo=@fachada.jpg" \
 ./mvnw test
 ```
 
-247 testes. A suíte cobre:
+273 testes. A suíte cobre:
 
 | Frente | O que garante |
 |--------|---------------|
@@ -483,6 +527,10 @@ curl -H "Authorization: Bearer $TOKEN" -F "photo=@fachada.jpg" \
 | `SavedSearchControllerTest`, `NotificationControllerTest` | nada na busca salva é público; notificação não tem supervisor |
 | `ProposalServiceTest` | as duas direções de iniciação, invariantes da negociação e quem pode cada desfecho |
 | `ProposalControllerTest` | thread fechado aos dois participantes, sem escopo administrativo |
+| `ReviewServiceTest` | elegibilidade por negociação prévia e o upsert de uma avaliação por par |
+| `ListingFavoriteServiceTest`, `RealtorFollowServiceTest` | idempotência dos vínculos e aviso só no nascimento |
+| `RealtorPostServiceTest` | curtida que não duplica e comentário com autor fechado |
+| `RealtorPostControllerTest` | as três fronteiras do mural: ler é público, publicar é do dono, interagir é de qualquer autenticado |
 | `GlobalExceptionHandlerTest` | pares status/`type` do contrato de erro |
 | `JwtServiceTest`, `UserSecurityTest`, `ListingSecurityTest`, `AuthenticationServiceTest` | token e autorização por posse |
 | `EmailTest`, `ZipCodeTest`, `PhotoContentTest`, `TextUtilsTest`, `ObjectUtilsTest` | invariantes e normalização |
@@ -518,18 +566,18 @@ corretoria/
 ├── postman/                 # coleção da API
 ├── src/main/java/com/corretoria/
 │   ├── config/              # SecurityConfig, StorageConfig, MailConfig, AsyncConfig, OpenApiConfig, ClockConfig, JpaAuditingConfig
-│   ├── controller/          # AuthController, UserController, ListingController, SavedSearchController, NotificationController, ProposalController, assemblers
-│   ├── entity/              # Auditable, User, Role, Address, PasswordResetToken, Listing, Property, Vehicle, ListingPhoto, SavedSearch, critérios, Notification, Proposal, ProposalMessage
-│   ├── enums/               # RoleName e os enums do anúncio, da busca salva e da notificação
+│   ├── controller/          # um controller por agregado + assemblers HATEOAS
+│   ├── entity/              # identidade, anúncio, busca salva, notificação, negociação e camada social (21 classes, incluindo Auditable)
+│   ├── enums/               # RoleName e os enums do anúncio, da busca salva, da notificação e da proposta
 │   ├── event/               # ListingPublishedEvent — fatos de domínio, sempre records com id
 │   ├── exception/           # exceções de domínio, ProblemType, GlobalExceptionHandler
-│   ├── mapper/              # UserMapper, AddressMapper, ListingMapper, SavedSearchMapper, NotificationMapper, ProposalMapper (MapStruct)
+│   ├── mapper/              # um mapper por agregado (MapStruct)
 │   ├── repository/          # Spring Data JPA
-│   ├── security/            # JWT e os beans de posse: UserSecurity, ListingSecurity, SavedSearchSecurity, NotificationSecurity, ProposalSecurity
+│   ├── security/            # JWT e um bean de posse por agregado (UserSecurity, ListingSecurity, SavedSearchSecurity, NotificationSecurity, ProposalSecurity, RealtorPostSecurity)
 │   ├── service/             # regras de negócio + portas de infraestrutura (StorageService, MailService)
 │   ├── util/                # TextUtils, ObjectUtils
 │   └── vo/                  # shared (Email, ZipCode, PhotoContent) e v1 (request/response)
-├── src/main/resources/db/migration/   # V1 a V8 (Flyway)
+├── src/main/resources/db/migration/   # V1 a V9 (Flyway)
 └── src/test/java/com/corretoria/
 ```
 
