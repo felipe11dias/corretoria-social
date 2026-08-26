@@ -83,6 +83,20 @@ public class GlobalExceptionHandler {
                 exception.getMessage(), request);
     }
 
+    /**
+     * Avaliação sem negociação prévia.
+     *
+     * <p>{@code 403} com type próprio: diferente de acesso negado, esta porta se abre sozinha
+     * assim que houver uma proposta entre as partes.
+     */
+    @ExceptionHandler(ReviewNotAllowedException.class)
+    public ProblemDetail handleReviewNotAllowed(
+            ReviewNotAllowedException exception, HttpServletRequest request) {
+
+        return build(HttpStatus.FORBIDDEN, ProblemType.REVIEW_NOT_ALLOWED,
+                exception.getMessage(), request);
+    }
+
     /** Ver {@link #handleInvalidListing}: mesma distinção, aplicada à negociação. */
     @ExceptionHandler(InvalidProposalException.class)
     public ProblemDetail handleInvalidProposal(

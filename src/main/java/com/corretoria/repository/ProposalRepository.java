@@ -30,6 +30,22 @@ public interface ProposalRepository extends JpaRepository<Proposal, Long> {
     Page<Proposal> findByParticipantId(@Param("userId") Long userId, Pageable pageable);
 
     /**
+     * Houve negociação entre este cliente e este corretor?
+     *
+     * <p>É a porta de entrada da avaliação: a reputação só vale se for difícil de fabricar, e
+     * ter negociado é o análogo da "compra verificada". Basta ter existido a proposta -- não
+     * precisa ter sido aceita, porque um corretor que sumiu depois de receber a proposta também
+     * merece ser avaliado.
+     */
+    @Query("""
+            SELECT COUNT(p) > 0 FROM Proposal p
+            WHERE p.customer.id = :customerId
+              AND p.listing.realtor.id = :realtorId
+            """)
+    boolean hasNegotiationBetween(
+            @Param("customerId") Long customerId, @Param("realtorId") Long realtorId);
+
+    /**
      * O usuário participa desta negociação?
      *
      * <p>Predicado no banco em vez de carregar o agregado: a checagem roda a cada escrita,

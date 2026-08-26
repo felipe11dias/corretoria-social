@@ -25,9 +25,19 @@ public class ForbiddenOperationException extends RuntimeException {
                 "Apenas usuários com o papel ROLE_REALTOR publicam anúncios");
     }
 
+    /**
+     * Operação exclusiva do cliente.
+     *
+     * <p>Vale para busca salva, favorito, acompanhar corretor e avaliação: são as quatro
+     * formas de o cliente marcar interesse, e nenhuma faz sentido para quem oferta.
+     */
     public static ForbiddenOperationException customerRoleRequired() {
         return new ForbiddenOperationException(
-                "Apenas usuários com o papel ROLE_CUSTOMER criam buscas salvas");
+                "Esta operação é exclusiva de usuários com o papel ROLE_CUSTOMER");
+    }
+
+    public static ForbiddenOperationException cannotFollowYourself() {
+        return new ForbiddenOperationException("Não é possível acompanhar a si mesmo");
     }
 
     public static ForbiddenOperationException realtorCanOnlyProposeOwnListing() {

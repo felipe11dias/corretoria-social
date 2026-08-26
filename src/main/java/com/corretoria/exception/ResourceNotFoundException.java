@@ -40,4 +40,8 @@ public class ResourceNotFoundException extends RuntimeException {
     public static ResourceNotFoundException proposal(Long id) {
         return new ResourceNotFoundException("Proposta não encontrada: " + id);
     }
+
+    public static ResourceNotFoundException realtorPost(Long id) {
+        return new ResourceNotFoundException("Publicação não encontrada: " + id);
+    }
 }
