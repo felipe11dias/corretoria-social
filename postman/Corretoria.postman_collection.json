@@ -18,6 +18,10 @@
     { "key": "matchListingId", "value": "" },
     { "key": "negotiationListingId", "value": "" },
     { "key": "proposalId", "value": "" },
+    { "key": "reviewId", "value": "" },
+    { "key": "favoriteId", "value": "" },
+    { "key": "postId", "value": "" },
+    { "key": "reportId", "value": "" },
     { "key": "runId", "value": "" },
     { "key": "senhaAtual", "value": "senhaSegura123" },
     { "key": "senhaNova", "value": "novaSenha456" }
@@ -1747,6 +1751,603 @@
             "body": { "mode": "raw", "raw": "{\n  \"status\": \"COMPLETED\"\n}" },
             "url": { "raw": "{{baseUrl}}/api/v1/listings/{{negotiationListingId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{negotiationListingId}}", "status"] },
             "description": "COMPLETED, e não REMOVED: o negócio saiu. É sinalização do corretor, sem registro de transação."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Social",
+      "description": "Cluster D da Fase 2. Reputação, favoritos, acompanhar corretor e mural.\n\nA avaliação é gated por interação real: só avalia quem já negociou com aquele corretor. Favoritar, seguir e curtir são PUT/DELETE idempotentes -- repetir a chamada não duplica nem vira 409.",
+      "item": [
+        {
+          "name": "Cliente avalia o corretor com quem negociou (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('nota registrada', () => pm.expect(body.score).to.eql(5));",
+                  "pm.collectionVariables.set('reviewId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"score\": 5,\n  \"comment\": \"Atendimento impecavel.\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/realtors/{{realtorId}}/reviews", "host": ["{{baseUrl}}"], "path": ["api", "v1", "realtors", "{{realtorId}}", "reviews"] },
+            "description": "Depende da proposta criada na pasta Propostas: sem negociacao previa, a resposta seria 403 review-not-allowed."
+          }
+        },
+        {
+          "name": "Reputação lida sem token (200, com a média no cabeçalho)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('média de todas as avaliações no cabeçalho', () =>",
+                  "  pm.expect(pm.response.headers.get('X-Corretoria-Average-Score')).to.match(/^[0-9.]+$/));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/realtors/{{realtorId}}/reviews", "host": ["{{baseUrl}}"], "path": ["api", "v1", "realtors", "{{realtorId}}", "reviews"] },
+            "description": "Reputacao que so o dono enxerga nao ajuda ninguem a escolher com quem negociar."
+          }
+        },
+        {
+          "name": "Segunda avaliação do mesmo par: substitui, não acumula (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('mesma avaliação, nota nova', () => {",
+                  "  pm.expect(String(pm.response.json().id)).to.eql(String(pm.collectionVariables.get('reviewId')));",
+                  "  pm.expect(pm.response.json().score).to.eql(3);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"score\": 3,\n  \"comment\": \"Revisei minha opiniao.\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/realtors/{{realtorId}}/reviews", "host": ["{{baseUrl}}"], "path": ["api", "v1", "realtors", "{{realtorId}}", "reviews"] },
+            "description": "Uma avaliacao por par: o verbo e PUT justamente porque a operacao e idempotente."
+          }
+        },
+        {
+          "name": "Corretor tentando favoritar: negado (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type access-denied', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/access-denied'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{realtorToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}/favorite", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}", "favorite"] },
+            "description": "Favoritar e marcar interesse: nao faz sentido para quem oferta."
+          }
+        },
+        {
+          "name": "Cliente favorita e repete: idempotente (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('favoriteId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}/favorite", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}", "favorite"] }
+          }
+        },
+        {
+          "name": "Favorita de novo: mesmo vínculo (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('nao duplicou', () =>",
+                  "  pm.expect(String(pm.response.json().id)).to.eql(String(pm.collectionVariables.get('favoriteId'))));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}/favorite", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}", "favorite"] },
+            "description": "Um botao de alternar precisa disso: repetir a chamada apos falha de rede nao pode virar 409."
+          }
+        },
+        {
+          "name": "Meus favoritos (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('o anuncio favoritado esta na lista', () =>",
+                  "  pm.expect(pm.response.json().page.totalElements).to.be.at.least(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/favorites", "host": ["{{baseUrl}}"], "path": ["api", "v1", "favorites"] }
+          }
+        },
+        {
+          "name": "Desfavorita duas vezes: 204 nas duas (204)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('204 No Content', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}/favorite", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}", "favorite"] },
+            "description": "Desmarcar o que nao estava marcado tambem devolve 204 -- rode esta requisicao duas vezes para ver."
+          }
+        }
+,
+        {
+          "name": "Cliente passa a acompanhar o corretor (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('vinculo com o corretor', () =>",
+                  "  pm.expect(pm.response.json().realtor.id).to.be.a('number'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/realtors/{{realtorId}}/follow", "host": ["{{baseUrl}}"], "path": ["api", "v1", "realtors", "{{realtorId}}", "follow"] },
+            "description": "O corretor e notificado apenas quando o vinculo nasce: um cliente indeciso nao deve encher a caixa dele."
+          }
+        },
+        {
+          "name": "Corretores que acompanho (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('o corretor seguido esta na lista', () =>",
+                  "  pm.expect(pm.response.json().page.totalElements).to.be.at.least(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/follows", "host": ["{{baseUrl}}"], "path": ["api", "v1", "follows"] }
+          }
+        },
+        {
+          "name": "Corretor publica no próprio mural (201, salva postId)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('nasce sem curtidas', () => pm.expect(pm.response.json().likeCount).to.eql(0));",
+                  "pm.collectionVariables.set('postId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"content\": \"O mercado da Aldeota neste mes: procura alta por 2 quartos.\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/realtors/{{realtorId}}/posts", "host": ["{{baseUrl}}"], "path": ["api", "v1", "realtors", "{{realtorId}}", "posts"] }
+          }
+        },
+        {
+          "name": "Cliente tentando publicar no mural do corretor: negado (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('403 Forbidden', () => pm.response.to.have.status(403));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"content\": \"Falando em nome de outro\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/realtors/{{realtorId}}/posts", "host": ["{{baseUrl}}"], "path": ["api", "v1", "realtors", "{{realtorId}}", "posts"] },
+            "description": "Publicar no mural de alguem e falar em nome dele."
+          }
+        },
+        {
+          "name": "Mural lido sem token (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('a publicacao aparece', () =>",
+                  "  pm.expect(pm.response.json().page.totalElements).to.be.at.least(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/realtors/{{realtorId}}/posts", "host": ["{{baseUrl}}"], "path": ["api", "v1", "realtors", "{{realtorId}}", "posts"] },
+            "description": "O mural e vitrine de presenca: exigir token para le-lo esvaziaria o proposito."
+          }
+        }
+,
+        {
+          "name": "Cliente curte (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('uma curtida', () => pm.expect(pm.response.json().likeCount).to.eql(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/posts/{{postId}}/like", "host": ["{{baseUrl}}"], "path": ["api", "v1", "posts", "{{postId}}", "like"] }
+          }
+        },
+        {
+          "name": "Mesma pessoa curte de novo: contagem não sobe (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('continua uma curtida', () =>",
+                  "  pm.expect(pm.response.json().likeCount).to.eql(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/posts/{{postId}}/like", "host": ["{{baseUrl}}"], "path": ["api", "v1", "posts", "{{postId}}", "like"] },
+            "description": "E o que a interface promete: uma curtida por pessoa, nao um contador que sobe a cada clique. O UNIQUE garante o mesmo no banco."
+          }
+        },
+        {
+          "name": "O corretor também curte: mural é conversa aberta (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('duas curtidas, de pessoas diferentes', () =>",
+                  "  pm.expect(pm.response.json().likeCount).to.eql(2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{realtorToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/posts/{{postId}}/like", "host": ["{{baseUrl}}"], "path": ["api", "v1", "posts", "{{postId}}", "like"] },
+            "description": "Curtir e comentar sao de qualquer usuario autenticado, inclusive de outro corretor -- diferente de favoritar e seguir."
+          }
+        },
+        {
+          "name": "Cliente comenta (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('comentario com id e autor', () => {",
+                  "  pm.expect(pm.response.json().id).to.be.a('number');",
+                  "  pm.expect(pm.response.json().author.id).to.be.a('number');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"content\": \"Otima analise, obrigado!\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/posts/{{postId}}/comments", "host": ["{{baseUrl}}"], "path": ["api", "v1", "posts", "{{postId}}", "comments"] }
+          }
+        },
+        {
+          "name": "Anônimo tentando curtir (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "url": { "raw": "{{baseUrl}}/api/v1/posts/{{postId}}/like", "host": ["{{baseUrl}}"], "path": ["api", "v1", "posts", "{{postId}}", "like"] },
+            "description": "Ler o mural e livre; interagir com ele exige token."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Moderação",
+      "description": "Cluster E da Fase 2, e o contrapeso da publicação imediata: abrir denúncia é de qualquer usuário autenticado, ver a fila e decidir é exclusivo do administrador.\n\nA sequência denuncia um anúncio com o cliente, prova as três barreiras (dono, denúncia repetida, fila fechada) e decide a denúncia com o administrador.",
+      "item": [
+        {
+          "name": "Cliente denuncia um anúncio (201, salva reportId)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('nasce em aberto e sem decisor', () => {",
+                  "  pm.expect(body.status).to.eql('OPEN');",
+                  "  pm.expect(body.decidedBy == null).to.be.true;",
+                  "});",
+                  "pm.test('traz quantas denuncias o anuncio acumulou', () =>",
+                  "  pm.expect(body.reportCountForListing).to.be.at.least(1));",
+                  "pm.collectionVariables.set('reportId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"reason\": \"MISLEADING_INFO\",\n  \"detail\": \"As fotos nao correspondem ao imovel descrito.\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}/reports", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}", "reports"] },
+            "description": "O motivo e de lista fechada: e ele que permite priorizar a fila. O texto livre vai em detail, como complemento."
+          }
+        },
+        {
+          "name": "Segunda denúncia em aberto do mesmo usuário (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('type duplicate-resource', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/duplicate-resource'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"reason\": \"SUSPECTED_FRAUD\",\n  \"detail\": \"Enfileirando de novo\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}/reports", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}", "reports"] },
+            "description": "Depois de decidida, uma denuncia nova e legitima: o anuncio pode ter mudado e voltado a ter problema."
+          }
+        },
+        {
+          "name": "Corretor denunciando o próprio anúncio (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type forbidden-operation', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/forbidden-operation'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"reason\": \"OTHER\",\n  \"detail\": \"Denunciando o que e meu\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}/reports", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}", "reports"] },
+            "description": "Para o que e dele, o corretor ja tem PATCH /listings/{id}/status."
+          }
+        },
+        {
+          "name": "Fila de moderação pelo cliente: negado (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type access-denied', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/access-denied'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/reports", "host": ["{{baseUrl}}"], "path": ["api", "v1", "reports"] },
+            "description": "Nem o denunciante acompanha a propria denuncia: a fila e ferramenta de trabalho do moderador."
+          }
+        },
+        {
+          "name": "Fila de moderação pelo administrador (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const reports = (pm.response.json()._embedded || {}).listingReportResponseList || [];",
+                  "const id = pm.collectionVariables.get('reportId');",
+                  "pm.test('a denuncia aberta esta na fila', () =>",
+                  "  pm.expect(reports.map(r => String(r.id))).to.include(String(id)));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/reports?size=50", "host": ["{{baseUrl}}"], "path": ["api", "v1", "reports"], "query": [{ "key": "size", "value": "50" }] },
+            "description": "Sem status, a fila devolve as OPEN, das mais antigas para as mais novas: quem esperou mais e atendido primeiro."
+          }
+        },
+        {
+          "name": "Administrador decide: acolhe a denúncia (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('acolhida, com quem decidiu', () => {",
+                  "  pm.expect(body.status).to.eql('REVIEWED');",
+                  "  pm.expect(body.decidedBy).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"REVIEWED\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/reports/{{reportId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "v1", "reports", "{{reportId}}", "status"] },
+            "description": "Quem decidiu vem da auditoria (last_updated_by), nao de uma coluna de revisor. Decidir nao mexe no anuncio: retira-lo do ar continua sendo acao explicita."
+          }
+        },
+        {
+          "name": "Segunda decisão sobre a mesma denúncia (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type forbidden-operation', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/forbidden-operation'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"DISMISSED\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/reports/{{reportId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "v1", "reports", "{{reportId}}", "status"] },
+            "description": "A denuncia decidida nao volta para a fila: um problema que reaparece e uma denuncia nova, com data nova."
           }
         }
       ]

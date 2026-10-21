@@ -36,6 +36,28 @@ public class ForbiddenOperationException extends RuntimeException {
                 "Esta operação é exclusiva de usuários com o papel ROLE_CUSTOMER");
     }
 
+    /**
+     * Denúncia do próprio anúncio.
+     *
+     * <p>O corretor não precisa da fila de moderação para o que é dele: editar ou pausar o
+     * anúncio é um endpoint que ele já tem.
+     */
+    public static ForbiddenOperationException cannotReportOwnListing() {
+        return new ForbiddenOperationException(
+                "Não faz sentido denunciar o próprio anúncio: edite-o ou mude a situação dele");
+    }
+
+    public static ForbiddenOperationException reportAlreadyDecided() {
+        return new ForbiddenOperationException(
+                "A denúncia já foi decidida e não volta para a fila: um problema que reaparece "
+                        + "é uma denúncia nova");
+    }
+
+    public static ForbiddenOperationException reportDecisionMustBeFinal() {
+        return new ForbiddenOperationException(
+                "A decisão da denúncia é REVIEWED ou DISMISSED: OPEN é de onde ela parte");
+    }
+
     public static ForbiddenOperationException cannotFollowYourself() {
         return new ForbiddenOperationException("Não é possível acompanhar a si mesmo");
     }

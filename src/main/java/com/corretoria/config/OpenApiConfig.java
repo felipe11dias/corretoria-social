@@ -61,7 +61,16 @@ import org.springframework.context.annotation.Configuration;
                 @Tag(name = "Notificações",
                         description = "Avisos in-app do usuário autenticado"),
                 @Tag(name = "Propostas",
-                        description = "Negociação entre cliente e corretor")
+                        description = "Negociação entre cliente e corretor"),
+                @Tag(name = "Avaliações",
+                        description = "Reputação do corretor, condicionada a negociação real"),
+                @Tag(name = "Favoritos", description = "Anúncios marcados pelo cliente"),
+                @Tag(name = "Seguir corretor",
+                        description = "Vínculo de acompanhamento do cliente"),
+                @Tag(name = "Mural",
+                        description = "Publicações do corretor, com comentários e curtidas"),
+                @Tag(name = "Moderação",
+                        description = "Denúncia de anúncios e fila de decisão do administrador")
         })
 @SecurityScheme(
         name = OpenApiConfig.BEARER_AUTH,

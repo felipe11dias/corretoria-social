@@ -20,6 +20,8 @@ A **Fase 2** está em execução e constrói o domínio sobre essa fundação:
   pública.
 - **Cluster D — social:** reputação do corretor condicionada a negociação real, favoritos,
   acompanhar corretor e mural com comentários e curtidas.
+- **Cluster E — moderação:** denúncia de anúncio aberta a qualquer usuário autenticado e fila
+  de decisão exclusiva do administrador — o contrapeso da publicação imediata.
 
 > Relatório técnico da Fase 1 (decisões, justificativas e histórico de cada etapa):
 > [`relatorio-corretoria-v1_0.md`](docs/relatorios/relatorio-corretoria-v1_0.md).
@@ -34,7 +36,7 @@ A **Fase 2** está em execução e constrói o domínio sobre essa fundação:
 |-------|-----------|------------------|
 | **Corretor** | `ROLE_REALTOR` | Gerencia o próprio cadastro e **publica anúncios** de imóveis e automóveis |
 | **Cliente** | `ROLE_CUSTOMER` | Gerencia o próprio cadastro e **busca** no catálogo; nunca oferta |
-| **Administrador** | `ROLE_ADMIN` | Consulta, busca, lista, atualiza e remove **qualquer** usuário ou anúncio |
+| **Administrador** | `ROLE_ADMIN` | Consulta, busca, lista, atualiza e remove **qualquer** usuário ou anúncio, e decide as denúncias |
 | **Visitante** | — | Lista e abre anúncios, lê o mural e a reputação dos corretores, sem token |
 
 Um mesmo usuário pode acumular papéis — eles vivem em tabela associativa, não em coluna enum.
@@ -70,6 +72,8 @@ Um mesmo usuário pode acumular papéis — eles vivem em tabela associativa, n�
 | Publicar no **próprio** mural | ✅ | ❌ | ❌ |
 | Comentar / curtir publicação | ✅ | ✅ | ✅ |
 | Ler mural e reputação (também sem token) | ✅ | ✅ | ✅ |
+| Denunciar anúncio | ✅ | ✅ | ✅ |
+| Ver a fila de moderação e decidir denúncia | ❌ | ❌ | ✅ |
 
 ---
 
@@ -401,6 +405,46 @@ uma curtida por pessoa, e não um contador que sobe a cada clique.
 interesse, e não fazem sentido para quem oferta. Já **comentar e curtir são de qualquer usuário
 autenticado**, inclusive de outro corretor: conversa de mural é pública, ao contrário do thread
 de uma proposta.
+
+### Moderação
+
+| Método | Rota | Descrição | Sucesso | Autorização |
+|--------|------|-----------|---------|-------------|
+| `POST` | `/api/v1/listings/{id}/reports` | Denuncia um anúncio | `201` | Autenticado |
+| `GET` | `/api/v1/reports` | Fila de moderação | `200` | `ROLE_ADMIN` |
+| `PATCH` | `/api/v1/reports/{id}/status` | Decide a denúncia | `200` | `ROLE_ADMIN` |
+
+A denúncia é **o contrapeso da publicação imediata**: a plataforma confia no corretor para
+publicar sem fila de aprovação e confia na comunidade para apontar o que estiver errado — sem o
+segundo, a confiança do primeiro ficaria sem resposta.
+
+A assimetria é deliberada: **abrir** é de qualquer usuário autenticado, porque o contrapeso só
+funciona se denunciar for fácil; **ver a fila e decidir** é exclusivo de `ROLE_ADMIN`, porque
+decisão de moderação não é opinião de usuário. Nem o denunciante acompanha a própria denúncia —
+a fila é ferramenta de trabalho do moderador.
+
+| Regra | Resposta |
+|-------|---------|
+| Denunciar o próprio anúncio | `403` — para isso existe `PATCH /listings/{id}/status` |
+| Segunda denúncia sua em aberto no mesmo anúncio | `409` — depois de decidida, uma nova é legítima |
+| Decidir uma denúncia já decidida | `403` — um problema que reaparece é denúncia nova |
+| Devolver a denúncia para `OPEN` | `403` — `OPEN` é de onde ela parte |
+
+O `reason` é de **lista fechada** (`MISLEADING_INFO`, `PROHIBITED_ITEM`, `SUSPECTED_FRAUD`,
+`INAPPROPRIATE_CONTENT`, `OTHER`), e é ele que permite priorizar a fila: suspeita de fraude não
+espera na mesma ordem que uma foto desatualizada. O texto livre fica em `detail`, como
+complemento, nunca como classificação.
+
+Sem `status`, a fila devolve as denúncias `OPEN`, das mais antigas para as mais novas — quem
+esperou mais é atendido primeiro. A resposta traz `reportCountForListing`, que distingue uma
+reclamação isolada de um padrão, e `decidedBy`, que vem da auditoria e só aparece depois da
+decisão.
+
+**Decidir não mexe no anúncio.** Acolher a denúncia registra a decisão; retirar o anúncio do ar
+continua sendo uma ação explícita sobre ele, para que um clique na fila não apague o anúncio de
+alguém por engano. Quem é avisado da denúncia nova são os **moderadores**, não o corretor
+denunciado — contar a ele antes da análise daria a quem agiu de má-fé o tempo de apagar o
+rastro.
 ### Erros
 
 Todas as respostas de erro seguem **ProblemDetail (RFC 7807)**:
@@ -455,12 +499,12 @@ catálogo de anúncios são públicos.
 ## Coleção Postman
 
 [`postman/Corretoria.postman_collection.json`](postman/Corretoria.postman_collection.json)
-(formato v2.1), com 64 requisições em seis pastas: **Autenticação**, **Usuários**,
-**Anúncios**, **Buscas salvas**, **Notificações** e **Propostas**.
+(formato v2.1), com 89 requisições em oito pastas: **Autenticação**, **Usuários**,
+**Anúncios**, **Buscas salvas**, **Notificações**, **Propostas**, **Social** e **Moderação**.
 
 **Como usar:** importe no Postman e execute **de cima para baixo**, ou rode a coleção inteira
 no *Runner*. Os scripts de teste populam `{{adminToken}}`, `{{realtorToken}}`,
-`{{customerToken}}`, `{{userId}}`, `{{listingId}}`, `{{savedSearchId}}`, `{{proposalId}}` e `{{token}}`
+`{{customerToken}}`, `{{userId}}`, `{{listingId}}`, `{{savedSearchId}}`, `{{proposalId}}`, `{{postId}}`, `{{reportId}}` e `{{token}}`
 automaticamente — nada precisa ser preenchido à mão. Ajuste `{{baseUrl}}` se a API não estiver
 em `http://localhost:8080`.
 
@@ -491,6 +535,10 @@ Além do caminho feliz, a coleção cobre os cenários que provam as regras:
   → `200`, e da segunda decisão sobre a mesma proposta → `400 invalid-proposal`;
 - **thread de proposta aberto com token de administrador → `403`**, que fixa que negociação não
   tem plateia.
+- **avaliação do mesmo par substituindo a nota em vez de acumular**, e **curtida repetida que
+  não mexe na contagem** — as duas idempotências que o `UNIQUE` sustenta no banco;
+- **denúncia do próprio anúncio → `403`**, **segunda denúncia em aberto → `409`** e **fila de
+  moderação pedida pelo cliente → `403`**, que juntas delimitam a assimetria da moderação.
 
 A publicação de um anúncio compatível com a busca salva fica na pasta **Buscas salvas** e
 dispara o casamento. Como ele é **assíncrono**, a coleção não afirma que a notificação já
@@ -512,7 +560,7 @@ curl -H "Authorization: Bearer $TOKEN" -F "photo=@fachada.jpg" \
 ./mvnw test
 ```
 
-273 testes. A suíte cobre:
+290 testes. A suíte cobre:
 
 | Frente | O que garante |
 |--------|---------------|
@@ -531,6 +579,8 @@ curl -H "Authorization: Bearer $TOKEN" -F "photo=@fachada.jpg" \
 | `ListingFavoriteServiceTest`, `RealtorFollowServiceTest` | idempotência dos vínculos e aviso só no nascimento |
 | `RealtorPostServiceTest` | curtida que não duplica e comentário com autor fechado |
 | `RealtorPostControllerTest` | as três fronteiras do mural: ler é público, publicar é do dono, interagir é de qualquer autenticado |
+| `ListingReportServiceTest` | abrir é fácil e decidir é restrito: dono barrado, segunda denúncia em aberto barrada, decisão definitiva |
+| `ListingReportControllerTest` | a assimetria da moderação: qualquer autenticado denuncia, só o administrador vê a fila e decide |
 | `GlobalExceptionHandlerTest` | pares status/`type` do contrato de erro |
 | `JwtServiceTest`, `UserSecurityTest`, `ListingSecurityTest`, `AuthenticationServiceTest` | token e autorização por posse |
 | `EmailTest`, `ZipCodeTest`, `PhotoContentTest`, `TextUtilsTest`, `ObjectUtilsTest` | invariantes e normalização |
@@ -577,7 +627,7 @@ corretoria/
 │   ├── service/             # regras de negócio + portas de infraestrutura (StorageService, MailService)
 │   ├── util/                # TextUtils, ObjectUtils
 │   └── vo/                  # shared (Email, ZipCode, PhotoContent) e v1 (request/response)
-├── src/main/resources/db/migration/   # V1 a V9 (Flyway)
+├── src/main/resources/db/migration/   # V1 a V10 (Flyway)
 └── src/test/java/com/corretoria/
 ```
 
