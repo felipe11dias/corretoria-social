@@ -11,8 +11,9 @@ description: >
   "renomeia essa classe", "esse nome tá bom?", "revisa esse código" ou colar um trecho de
   código pedindo ajuste TODOS passam por esta skill antes de qualquer código ser escrito.
   A skill impõe o glossário canônico do domínio (realtor, customer, admin, user, role,
-  address) e bloqueia sinônimos concorrentes. Nunca invente convenção nova sem registrar
-  aqui.
+  address, listing, property, vehicle, savedSearch, proposal, review, favorite, follow,
+  post, report, notification) e bloqueia sinônimos concorrentes. Nunca invente convenção
+  nova sem registrar aqui.
 ---
 
 # Padrão de Nomenclatura — Corretoria
@@ -21,7 +22,8 @@ Projeto: plataforma que reúne todos os corretores em um só lugar.
 Raiz de pacote: `com.corretoria` · Java 21 · Spring Boot 3.5.x · PostgreSQL 16.
 
 **Escopo:** identidade, autenticação, autorização e gestão de usuários (corretor, cliente,
-administrador).
+administrador) — Fase 1 — e o domínio de anúncios de imóveis e automóveis, busca salva,
+negociação, camada social e moderação — Fase 2.
 
 ## Como usar esta skill
 
@@ -51,6 +53,36 @@ usuário**. Um conceito = um termo. Sempre.
 
 > ⚠️ **O papel do corretor é `ROLE_REALTOR`.** `ROLE_OWNER` não existe no projeto; qualquer
 > ocorrência dele no código é bug. `owner` também não é sinônimo aceitável de corretor.
+
+### 1.1 Domínio de anúncios (Fase 2)
+
+| Conceito (PT) | Termo canônico (código) | Proibido usar |
+|---------------|-------------------------|---------------|
+| Anúncio | `listing` / `Listing` | `ad`, `announcement`, `anuncio` |
+| Imóvel | `property` / `Property` | `realEstate`, `estate`, `imovel` |
+| Automóvel/veículo | `vehicle` / `Vehicle` | `car` (é só um `VehicleType`), `automovel` |
+| Foto do anúncio | `photo` / `ListingPhoto` | `image`, `picture`, `foto` |
+| Busca salva / anúncio de procura | `savedSearch` / `SavedSearch` | `searchRequest`, `wantedAd`, `busca` |
+| Proposta | `proposal` / `Proposal` | `offer`, `bid`, `oferta` |
+| Mensagem de proposta | `proposalMessage` / `ProposalMessage` | `chatMessage`, `mensagem` |
+| Avaliação | `review` / `Review` | `rating`, `feedback`, `avaliacao` |
+| Favorito | `favorite` / `ListingFavorite` | `bookmark`, `like` (reservado a post) |
+| Seguir corretor | `follow` / `RealtorFollow` | `subscription`, `seguidor` |
+| Publicação do corretor | `post` / `RealtorPost` | `update`, `publicacao` |
+| Denúncia | `report` / `ListingReport` | `complaint`, `flag`, `denuncia` |
+| Notificação | `notification` / `Notification` | `alert`, `notificacao` |
+
+> **Por que `SavedSearch` e não `SearchRequest`:** o sufixo `Request` é reservado por esta
+> skill a VO de contrato (`vo.v1.request`). Uma entidade `SearchRequest` produziria
+> `SearchRequestCreationRequest` como VO de criação — "Request" duplicado. `SavedSearch`
+> também é o termo consagrado no setor.
+
+O armazenamento de arquivo é `storage` / `StorageService` / `storageKey`; nunca `bucket`,
+`file`, `upload` ou `s3` no nome de artefato de domínio (`s3` só aparece em configuração da
+infraestrutura, sob `corretoria.storage.*`).
+
+O envio de e-mail é `mail` / `MailService` — distinto do VO `Email`, que é o **endereço**.
+Proibidos: `emailSender`, `notifier`, `Mailer`.
 
 Idioma: **nunca misture** português e inglês em um mesmo identificador
 (`UserProprietario`, `salvarUser`, `usuarioRepository` → proibidos).
@@ -96,6 +128,7 @@ responsabilidade:
 | Controller | `<Agregado>Controller` | `UserController`, `AuthController` |
 | Service (classe única) | `<Agregado>Service` | `UserService`, `AuthenticationService` |
 | Service com interface | interface `<Agregado>Service` + `<Agregado>ServiceImpl` | `UserServiceImpl` |
+| Implementação de porta de infraestrutura | `<Tecnologia><Porta>Service` | `S3StorageService` |
 | Repository | `<Agregado>Repository` | `UserRepository`, `RoleRepository` |
 | Mapper MapStruct | `<Agregado>Mapper` | `UserMapper`, `AddressMapper` |
 | Assembler HATEOAS | `<Agregado>ModelAssembler` | `UserModelAssembler` |
@@ -110,6 +143,9 @@ Regras:
 - **Interface não recebe prefixo `I`** (`IUserService` → proibido).
 - Só crie `...Impl` se existir **mais de uma implementação prevista**. Interface com
   implementação única é acoplamento cerimonial.
+- Quando a interface é uma **porta de infraestrutura** (o service depende da abstração para
+  não conhecer o SDK), a implementação leva o nome da tecnologia, não o sufixo `Impl`:
+  `S3StorageService`, não `StorageServiceImpl` — o nome informa qual detalhe está por trás.
 - Sem sufixo `Manager`, `Processor`, `Handler` (exceto `GlobalExceptionHandler`), `Helper`,
   `Util` no singular, `Data`, `Info`, `Object`.
 

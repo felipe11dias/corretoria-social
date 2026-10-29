@@ -20,4 +20,32 @@ public class ResourceNotFoundException extends RuntimeException {
     public static ResourceNotFoundException role(Object name) {
         return new ResourceNotFoundException("Papel não encontrado: " + name);
     }
+
+    public static ResourceNotFoundException listing(Long id) {
+        return new ResourceNotFoundException("Anúncio não encontrado: " + id);
+    }
+
+    public static ResourceNotFoundException listingPhoto(Long id) {
+        return new ResourceNotFoundException("Foto não encontrada: " + id);
+    }
+
+    public static ResourceNotFoundException savedSearch(Long id) {
+        return new ResourceNotFoundException("Busca salva não encontrada: " + id);
+    }
+
+    public static ResourceNotFoundException notification(Long id) {
+        return new ResourceNotFoundException("Notificação não encontrada: " + id);
+    }
+
+    public static ResourceNotFoundException proposal(Long id) {
+        return new ResourceNotFoundException("Proposta não encontrada: " + id);
+    }
+
+    public static ResourceNotFoundException realtorPost(Long id) {
+        return new ResourceNotFoundException("Publicação não encontrada: " + id);
+    }
+
+    public static ResourceNotFoundException listingReport(Long id) {
+        return new ResourceNotFoundException("Denúncia não encontrada: " + id);
+    }
 }

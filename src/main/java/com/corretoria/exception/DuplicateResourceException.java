@@ -20,4 +20,15 @@ public class DuplicateResourceException extends RuntimeException {
     public static DuplicateResourceException login(String login) {
         return new DuplicateResourceException("Login já cadastrado: " + login);
     }
+
+    /**
+     * Segunda denúncia aberta da mesma pessoa sobre o mesmo anúncio.
+     *
+     * <p>Conflito, e não erro de validação: a primeira denúncia existe e está na fila. Depois
+     * de decidida, uma nova é legítima — o anúncio pode ter mudado e voltado a ter problema.
+     */
+    public static DuplicateResourceException openListingReport(Long listingId) {
+        return new DuplicateResourceException(
+                "Você já tem uma denúncia em aberto para o anúncio " + listingId);
+    }
 }

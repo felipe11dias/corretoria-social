@@ -10,6 +10,18 @@
     { "key": "token", "value": "" },
     { "key": "userId", "value": "" },
     { "key": "otherUserId", "value": "1" },
+    { "key": "realtorToken", "value": "" },
+    { "key": "customerToken", "value": "" },
+    { "key": "realtorId", "value": "" },
+    { "key": "listingId", "value": "" },
+    { "key": "savedSearchId", "value": "" },
+    { "key": "matchListingId", "value": "" },
+    { "key": "negotiationListingId", "value": "" },
+    { "key": "proposalId", "value": "" },
+    { "key": "reviewId", "value": "" },
+    { "key": "favoriteId", "value": "" },
+    { "key": "postId", "value": "" },
+    { "key": "reportId", "value": "" },
     { "key": "runId", "value": "" },
     { "key": "senhaAtual", "value": "senhaSegura123" },
     { "key": "senhaNova", "value": "novaSenha456" }
@@ -49,7 +61,7 @@
           }
         },
         {
-          "name": "Login corretor",
+          "name": "Login corretor (salva realtorToken)",
           "event": [
             {
               "listen": "test",
@@ -57,7 +69,8 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('200 OK', () => pm.response.to.have.status(200));",
-                  "pm.test('token emitido', () => pm.expect(pm.response.json().token).to.be.a('string'));"
+                  "pm.test('token emitido', () => pm.expect(pm.response.json().token).to.be.a('string'));",
+                  "pm.collectionVariables.set('realtorToken', pm.response.json().token);"
                 ]
               }
             }
@@ -70,7 +83,7 @@
           }
         },
         {
-          "name": "Login cliente",
+          "name": "Login cliente (salva customerToken)",
           "event": [
             {
               "listen": "test",
@@ -78,7 +91,8 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('200 OK', () => pm.response.to.have.status(200));",
-                  "pm.test('token emitido', () => pm.expect(pm.response.json().token).to.be.a('string'));"
+                  "pm.test('token emitido', () => pm.expect(pm.response.json().token).to.be.a('string'));",
+                  "pm.collectionVariables.set('customerToken', pm.response.json().token);"
                 ]
               }
             }
@@ -606,6 +620,1734 @@
             "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
             "url": { "raw": "{{baseUrl}}/api/v1/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "{{userId}}"] },
             "description": "Consultado pelo administrador, para provar que o registro sumiu de fato — e não apenas que o dono perdeu o acesso."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Anúncios",
+      "description": "Catálogo da Fase 2. Usa o corretor e o cliente de demonstração ({{realtorToken}} e {{customerToken}}, salvos na pasta Autenticação), e não o usuário criado na pasta Usuários — aquele é excluído no fim dela.\n\nA sequência é re-executável: o anúncio criado termina com situação REMOVED, que é a forma de aposentar um anúncio (não há DELETE de anúncio por decisão de modelagem).",
+      "item": [
+        {
+          "name": "Publica anúncio de imóvel (201, salva listingId)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('cabeçalho Location', () => pm.expect(pm.response.headers.get('Location')).to.be.a('string'));",
+                  "const body = pm.response.json();",
+                  "pm.test('nasce ACTIVE: publicação é imediata', () => pm.expect(body.status).to.eql('ACTIVE'));",
+                  "pm.test('o dono veio do token, não do corpo', () => pm.expect(body.realtor.id).to.be.a('number'));",
+                  "pm.test('detalhamento de imóvel preenchido, o de veículo não', () => {",
+                  "  pm.expect(body.property).to.not.be.null;",
+                  "  pm.expect(body.vehicle).to.be.null;",
+                  "});",
+                  "pm.collectionVariables.set('listingId', body.id);",
+                  "pm.collectionVariables.set('realtorId', body.realtor.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PROPERTY\",\n  \"operationType\": \"SALE\",\n  \"title\": \"Apartamento na Aldeota\",\n  \"description\": \"Três quartos, nascente, dois vagas cobertas.\",\n  \"price\": 450000.00,\n  \"neighborhood\": \"Aldeota\",\n  \"city\": \"Fortaleza\",\n  \"state\": \"CE\",\n  \"latitude\": -3.7327,\n  \"longitude\": -38.5270,\n  \"property\": {\n    \"propertyType\": \"APARTMENT\",\n    \"totalArea\": 90.00,\n    \"bedrooms\": 3,\n    \"bathrooms\": 2,\n    \"garageSpots\": 2,\n    \"condominiumFee\": 450.00,\n    \"iptu\": 1200.00,\n    \"amenities\": [\"POOL\", \"ELEVATOR\", \"GYM\"]\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings"] },
+            "description": "O corpo não tem campo de corretor: o dono é resolvido a partir do token. Aceitar o id do dono no payload permitiria publicar em nome de outro."
+          }
+        },
+        {
+          "name": "Publicação por cliente: negado (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type access-denied', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/access-denied'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PROPERTY\",\n  \"operationType\": \"SALE\",\n  \"title\": \"Tentativa de cliente\",\n  \"description\": \"Cliente busca e negocia, mas nunca oferta.\",\n  \"price\": 100000.00,\n  \"neighborhood\": \"Centro\",\n  \"city\": \"Fortaleza\",\n  \"state\": \"CE\",\n  \"latitude\": -3.7300,\n  \"longitude\": -38.5200,\n  \"property\": {\n    \"propertyType\": \"HOUSE\",\n    \"totalArea\": 120.00\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings"] },
+            "description": "Regra 1 da Fase 2: só corretor oferta."
+          }
+        },
+        {
+          "name": "Publicação sem token (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+                  "pm.test('type missing-token', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/missing-token'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PROPERTY\",\n  \"operationType\": \"SALE\",\n  \"title\": \"Sem token\",\n  \"description\": \"Ler o catálogo é livre; publicar não.\",\n  \"price\": 100000.00,\n  \"neighborhood\": \"Centro\",\n  \"city\": \"Fortaleza\",\n  \"state\": \"CE\",\n  \"latitude\": -3.73,\n  \"longitude\": -38.52,\n  \"property\": { \"propertyType\": \"HOUSE\", \"totalArea\": 120.00 }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings"] },
+            "description": "A abertura do catálogo vale só para leitura."
+          }
+        },
+        {
+          "name": "Veículo com aluguel: proibido (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('type invalid-listing', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/invalid-listing'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"VEHICLE\",\n  \"operationType\": \"RENT\",\n  \"title\": \"Fiat Argo 2023\",\n  \"description\": \"Aluguel de automóvel é operação de locadora.\",\n  \"price\": 300.00,\n  \"neighborhood\": \"Meireles\",\n  \"city\": \"Fortaleza\",\n  \"state\": \"CE\",\n  \"latitude\": -3.7250,\n  \"longitude\": -38.4900,\n  \"vehicle\": {\n    \"vehicleType\": \"CAR\",\n    \"brand\": \"Fiat\",\n    \"model\": \"Argo\",\n    \"color\": \"Prata\",\n    \"manufactureYear\": 2022,\n    \"modelYear\": 2023,\n    \"mileageKm\": 30000,\n    \"fuelType\": \"FLEX\",\n    \"transmission\": \"AUTOMATIC\",\n    \"condition\": \"USED\"\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings"] },
+            "description": "Cada campo é válido isoladamente; a combinação é que não existe no domínio — por isso o type é invalid-listing, e não validation-error. A mesma regra está no CHECK ck_listings_vehicle_only_sale."
+          }
+        },
+        {
+          "name": "Detalhamento fora do tipo: proibido (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('type invalid-listing', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/invalid-listing'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PROPERTY\",\n  \"operationType\": \"SALE\",\n  \"title\": \"Imóvel com detalhamento de veículo\",\n  \"description\": \"Um anúncio tem exatamente um detalhamento.\",\n  \"price\": 200000.00,\n  \"neighborhood\": \"Centro\",\n  \"city\": \"Fortaleza\",\n  \"state\": \"CE\",\n  \"latitude\": -3.73,\n  \"longitude\": -38.52,\n  \"vehicle\": {\n    \"vehicleType\": \"CAR\",\n    \"brand\": \"Fiat\",\n    \"model\": \"Argo\",\n    \"color\": \"Prata\",\n    \"manufactureYear\": 2022,\n    \"modelYear\": 2023,\n    \"mileageKm\": 30000,\n    \"fuelType\": \"FLEX\",\n    \"transmission\": \"AUTOMATIC\",\n    \"condition\": \"USED\"\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings"] }
+          }
+        },
+        {
+          "name": "Busca no catálogo sem token (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('o catálogo é público: nenhum token foi enviado', () =>",
+                  "  pm.expect(pm.response.json().page.totalElements).to.be.at.least(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/listings?type=PROPERTY&city=Fortaleza&maxPrice=500000",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "listings"],
+              "query": [
+                { "key": "type", "value": "PROPERTY" },
+                { "key": "city", "value": "Fortaleza" },
+                { "key": "maxPrice", "value": "500000" }
+              ]
+            },
+            "description": "Filtros combináveis, todos opcionais. Sem filtro de situação, só anúncios ACTIVE."
+          }
+        },
+        {
+          "name": "Busca por raio (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('o anúncio da Aldeota está dentro de 5 km', () =>",
+                  "  pm.expect(pm.response.json().page.totalElements).to.be.at.least(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/listings?latitude=-3.7327&longitude=-38.5270&radiusKm=5",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "listings"],
+              "query": [
+                { "key": "latitude", "value": "-3.7327" },
+                { "key": "longitude", "value": "-38.5270" },
+                { "key": "radiusKm", "value": "5" }
+              ]
+            },
+            "description": "Distância por Haversine, com recorte prévio por faixa de latitude para usar o índice."
+          }
+        },
+        {
+          "name": "Busca por raio sem coordenada (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('type invalid-field-format', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/invalid-field-format'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/listings?radiusKm=5",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "listings"],
+              "query": [{ "key": "radiusKm", "value": "5" }]
+            },
+            "description": "Raio sem centro não define recorte nenhum."
+          }
+        },
+        {
+          "name": "Busca por situação PAUSED sem posse: negado (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type forbidden-operation', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/forbidden-operation'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/listings?status=PAUSED",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "listings"],
+              "query": [{ "key": "status", "value": "PAUSED" }]
+            },
+            "description": "Pausar tira o anúncio da vitrine; listá-lo pelo filtro de situação anularia a decisão do corretor."
+          }
+        },
+        {
+          "name": "Consulta por id sem token (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('links de navegação', () => {",
+                  "  pm.expect(body._links.self.href).to.be.a('string');",
+                  "  pm.expect(body._links.realtor.href).to.be.a('string');",
+                  "});",
+                  "pm.test('o corretor sai resumido: só id e nome', () =>",
+                  "  pm.expect(Object.keys(body.realtor)).to.have.members(['id', 'name']));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}"] },
+            "description": "O catálogo é aberto, então o corretor aparece resumido: e-mail, login e endereços continuam exigindo token e posse."
+          }
+        },
+        {
+          "name": "Atualização por quem não é dono: negado (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type access-denied', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/access-denied'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"operationType\": \"SALE\",\n  \"title\": \"Sequestro de anúncio\",\n  \"description\": \"Trocar o id da URL não dá posse do recurso.\",\n  \"price\": 1.00,\n  \"neighborhood\": \"Aldeota\",\n  \"city\": \"Fortaleza\",\n  \"state\": \"CE\",\n  \"latitude\": -3.7327,\n  \"longitude\": -38.5270,\n  \"property\": { \"propertyType\": \"APARTMENT\", \"totalArea\": 90.00 }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}"] },
+            "description": "Barreira de IDOR do anúncio: @listingSecurity.isOwner."
+          }
+        },
+        {
+          "name": "Atualização do próprio anúncio (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('preço e comodidades atualizados', () => {",
+                  "  pm.expect(body.price).to.eql(470000.00);",
+                  "  pm.expect(body.property.amenities).to.include('BALCONY');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"operationType\": \"SALE\",\n  \"title\": \"Apartamento na Aldeota (reformado)\",\n  \"description\": \"Três quartos, nascente, reformado em 2026.\",\n  \"price\": 470000.00,\n  \"neighborhood\": \"Aldeota\",\n  \"city\": \"Fortaleza\",\n  \"state\": \"CE\",\n  \"latitude\": -3.7327,\n  \"longitude\": -38.5270,\n  \"property\": {\n    \"propertyType\": \"APARTMENT\",\n    \"totalArea\": 92.00,\n    \"bedrooms\": 3,\n    \"bathrooms\": 2,\n    \"garageSpots\": 2,\n    \"amenities\": [\"POOL\", \"ELEVATOR\", \"BALCONY\"]\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}"] },
+            "description": "O tipo não vai no corpo: é imutável. O detalhamento enviado tem de corresponder ao tipo já registrado."
+          }
+        },
+        {
+          "name": "Remoção de foto inexistente (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+                  "pm.test('type resource-not-found', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/resource-not-found'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{realtorToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}/photos/999999", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}", "photos", "999999"] },
+            "description": "O envio de foto é multipart e exige escolher um arquivo local, então fica fora da execução automática — use o Swagger ou:\n\ncurl -H \"Authorization: Bearer $TOKEN\" -F \"photo=@fachada.jpg\" http://localhost:8080/api/v1/listings/1/photos"
+          }
+        },
+        {
+          "name": "Pausa o anúncio (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('situação PAUSED', () => pm.expect(pm.response.json().status).to.eql('PAUSED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"PAUSED\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}", "status"] },
+            "description": "Transição de estado tem endpoint próprio: pausar não é editar conteúdo."
+          }
+        },
+        {
+          "name": "Catálogo após pausar: prova do efeito (200 sem o anúncio)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const listings = (pm.response.json()._embedded || {}).listingResponseList || [];",
+                  "const paused = pm.collectionVariables.get('listingId');",
+                  "pm.test('o anúncio pausado saiu da vitrine', () =>",
+                  "  pm.expect(listings.map(l => String(l.id))).to.not.include(String(paused)));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/listings?realtorId={{realtorId}}&size=100",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "listings"],
+              "query": [
+                { "key": "realtorId", "value": "{{realtorId}}" },
+                { "key": "size", "value": "100" }
+              ]
+            },
+            "description": "Evidência de efeito: o 200 do PATCH prova que a requisição foi aceita, não que o anúncio saiu da vitrine."
+          }
+        },
+        {
+          "name": "Busca dos próprios pausados pelo dono (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const listings = (pm.response.json()._embedded || {}).listingResponseList || [];",
+                  "const paused = pm.collectionVariables.get('listingId');",
+                  "pm.test('o dono enxerga o próprio anúncio pausado', () =>",
+                  "  pm.expect(listings.map(l => String(l.id))).to.include(String(paused)));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{realtorToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/listings?status=PAUSED&realtorId={{realtorId}}&size=100",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "listings"],
+              "query": [
+                { "key": "status", "value": "PAUSED" },
+                { "key": "realtorId", "value": "{{realtorId}}" },
+                { "key": "size", "value": "100" }
+              ]
+            },
+            "description": "O outro lado da regra: negado ao visitante, permitido ao dono que filtra os próprios anúncios."
+          }
+        },
+        {
+          "name": "Aposenta o anúncio (200, limpeza)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('situação REMOVED', () => pm.expect(pm.response.json().status).to.eql('REMOVED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"REMOVED\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}", "status"] },
+            "description": "Não existe DELETE de anúncio: REMOVED é a aposentadoria, e mantém o histórico de propostas e denúncias que os clusters seguintes vão pendurar nele."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Buscas salvas",
+      "description": "Cluster B da Fase 2. Nada aqui é público — nem a vitrine de procura: uma busca revela o que a pessoa quer, onde e por quanto.\n\nA sequência cria uma busca com o cliente de demonstração, torna-a pública, publica um anúncio que casa com ela (o que dispara a notificação) e limpa tudo no fim.\n\nO casamento é assíncrono: o 201 da publicação volta antes de a notificação existir. Por isso a pasta Notificações não afirma que o aviso chegou — afirma apenas que a listagem responde e que ninguém lê a correspondência alheia.",
+      "item": [
+        {
+          "name": "Cria busca salva privada (201, salva savedSearchId)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('nasce ativa e privada', () => {",
+                  "  pm.expect(body.active).to.be.true;",
+                  "  pm.expect(body.visibility).to.eql('PRIVATE');",
+                  "});",
+                  "pm.test('o dono veio do token', () => pm.expect(body.customer.id).to.be.a('number'));",
+                  "pm.collectionVariables.set('savedSearchId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PROPERTY\",\n  \"visibility\": \"PRIVATE\",\n  \"title\": \"Procuro apartamento na Aldeota\",\n  \"operationType\": \"SALE\",\n  \"maxPrice\": 600000.00,\n  \"city\": \"Fortaleza\",\n  \"state\": \"CE\",\n  \"propertyCriteria\": {\n    \"propertyType\": \"APARTMENT\",\n    \"minBedrooms\": 2\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/saved-searches", "host": ["{{baseUrl}}"], "path": ["api", "v1", "saved-searches"] },
+            "description": "Critério ausente significa \"qualquer valor\" — é a regra do catálogo ao contrário."
+          }
+        },
+        {
+          "name": "Criação por corretor: negado (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type access-denied', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/access-denied'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PROPERTY\",\n  \"visibility\": \"PRIVATE\",\n  \"title\": \"Corretor tentando procurar\",\n  \"city\": \"Fortaleza\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/saved-searches", "host": ["{{baseUrl}}"], "path": ["api", "v1", "saved-searches"] },
+            "description": "Quem oferta não usa a vitrine de procura: corretor publica, cliente procura."
+          }
+        },
+        {
+          "name": "Critérios de veículo em busca de imóvel (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('type invalid-saved-search', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/invalid-saved-search'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PROPERTY\",\n  \"visibility\": \"PRIVATE\",\n  \"title\": \"Imóvel com critério de carro\",\n  \"vehicleCriteria\": { \"brand\": \"Fiat\" }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/saved-searches", "host": ["{{baseUrl}}"], "path": ["api", "v1", "saved-searches"] }
+          }
+        },
+        {
+          "name": "Raio sem coordenada (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('type invalid-saved-search', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/invalid-saved-search'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PROPERTY\",\n  \"visibility\": \"PRIVATE\",\n  \"title\": \"Raio sem centro\",\n  \"radiusKm\": 5\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/saved-searches", "host": ["{{baseUrl}}"], "path": ["api", "v1", "saved-searches"] },
+            "description": "A mesma regra está no CHECK ck_saved_searches_radius_center."
+          }
+        },
+        {
+          "name": "Lista as próprias buscas (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('a busca criada está na lista', () =>",
+                  "  pm.expect(pm.response.json().page.totalElements).to.be.at.least(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/saved-searches", "host": ["{{baseUrl}}"], "path": ["api", "v1", "saved-searches"] }
+          }
+        },
+        {
+          "name": "Vitrine de procura sem token (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+                  "pm.test('type missing-token', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/missing-token'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/saved-searches/public", "host": ["{{baseUrl}}"], "path": ["api", "v1", "saved-searches", "public"] },
+            "description": "Diferente do catálogo de anúncios: procura não é vitrine aberta a visitante anônimo."
+          }
+        },
+        {
+          "name": "Torna a busca pública (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('agora é PUBLIC', () =>",
+                  "  pm.expect(pm.response.json().visibility).to.eql('PUBLIC'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"visibility\": \"PUBLIC\",\n  \"title\": \"Procuro apartamento na Aldeota, 2+ quartos\",\n  \"active\": true,\n  \"operationType\": \"SALE\",\n  \"maxPrice\": 600000.00,\n  \"city\": \"Fortaleza\",\n  \"state\": \"CE\",\n  \"propertyCriteria\": {\n    \"propertyType\": \"APARTMENT\",\n    \"minBedrooms\": 2\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/saved-searches/{{savedSearchId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "saved-searches", "{{savedSearchId}}"] },
+            "description": "O tipo não vai no corpo: é imutável, como no anúncio."
+          }
+        },
+        {
+          "name": "Vitrine de procura como corretor (200, com a busca)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const searches = (pm.response.json()._embedded || {}).savedSearchResponseList || [];",
+                  "const id = pm.collectionVariables.get('savedSearchId');",
+                  "pm.test('a busca pública aparece para o corretor', () =>",
+                  "  pm.expect(searches.map(s => String(s.id))).to.include(String(id)));",
+                  "pm.test('o cliente sai resumido: só id e nome', () => {",
+                  "  const target = searches.find(s => String(s.id) === String(id));",
+                  "  pm.expect(Object.keys(target.customer)).to.have.members(['id', 'name']);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{realtorToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/saved-searches/public?size=100", "host": ["{{baseUrl}}"], "path": ["api", "v1", "saved-searches", "public"], "query": [{ "key": "size", "value": "100" }] },
+            "description": "Mercado reverso: é aqui que o corretor descobre quem está procurando o quê."
+          }
+        },
+        {
+          "name": "Publica anúncio compatível (201, dispara o casamento)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('matchListingId', pm.response.json().id);",
+                  "pm.test('a resposta não espera pelo casamento', () =>",
+                  "  pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PROPERTY\",\n  \"operationType\": \"SALE\",\n  \"title\": \"Apartamento 2 quartos na Aldeota\",\n  \"description\": \"Compatível com a busca salva criada acima.\",\n  \"price\": 520000.00,\n  \"neighborhood\": \"Aldeota\",\n  \"city\": \"Fortaleza\",\n  \"state\": \"CE\",\n  \"latitude\": -3.7330,\n  \"longitude\": -38.5280,\n  \"property\": {\n    \"propertyType\": \"APARTMENT\",\n    \"totalArea\": 75.00,\n    \"bedrooms\": 2,\n    \"bathrooms\": 1\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings"] },
+            "description": "O casamento roda depois do commit e em outra thread. Em desenvolvimento, o e-mail resultante aparece no Mailpit: http://localhost:8025"
+          }
+        },
+        {
+          "name": "Aposenta o anúncio do casamento (200, limpeza)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"REMOVED\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{matchListingId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{matchListingId}}", "status"] }
+          }
+        },
+        {
+          "name": "Edição por quem não é dono: negado (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type access-denied', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/access-denied'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"visibility\": \"PRIVATE\",\n  \"title\": \"Sequestro de busca\",\n  \"active\": false\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/saved-searches/{{savedSearchId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "saved-searches", "{{savedSearchId}}"] },
+            "description": "Barreira de IDOR da busca salva: @savedSearchSecurity.isOwner."
+          }
+        },
+        {
+          "name": "Exclui a busca salva (204, limpeza)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('204 No Content', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/saved-searches/{{savedSearchId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "saved-searches", "{{savedSearchId}}"] },
+            "description": "Remove também os critérios específicos, por cascade."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notificações",
+      "description": "Notificação é correspondência: cada um lê apenas a sua, e não há escopo administrativo.\n\nO casamento com buscas salvas é assíncrono, então esta pasta não afirma que o aviso da pasta anterior já chegou — afirma que a listagem responde, que traz o total de não lidas no cabeçalho e que ninguém alcança a notificação alheia.",
+      "item": [
+        {
+          "name": "Listagem sem token (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+                  "pm.test('type missing-token', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/missing-token'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/notifications", "host": ["{{baseUrl}}"], "path": ["api", "v1", "notifications"] }
+          }
+        },
+        {
+          "name": "Lista as próprias notificações (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('cabeçalho com o total de não lidas', () =>",
+                  "  pm.expect(pm.response.headers.get('X-Corretoria-Unread-Count')).to.match(/^[0-9]+$/));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/notifications", "host": ["{{baseUrl}}"], "path": ["api", "v1", "notifications"] },
+            "description": "O total pendente vai no cabeçalho, não no corpo: o corpo é a página de notificações, e o total não é um item dela."
+          }
+        },
+        {
+          "name": "Notificação de outro usuário: negado (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type access-denied', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/access-denied'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/notifications/999999/read", "host": ["{{baseUrl}}"], "path": ["api", "v1", "notifications", "999999", "read"] },
+            "description": "Feito com o token de administrador de propósito: correspondência não tem supervisor. Id inexistente também responde 403, e não 404 — quem não é destinatário não descobre nem se a notificação existe."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Propostas",
+      "description": "Cluster C da Fase 2. A direção da proposta é deduzida de quem está autenticado, nunca informada no corpo.\n\nA sequência publica um anúncio do corretor, faz o cliente propor sobre ele, prova que quem propôs não pode aceitar a própria proposta, deixa a contraparte aceitar, escreve no thread e limpa o anúncio no fim.",
+      "item": [
+        {
+          "name": "Corretor publica anúncio para negociar (201, salva negotiationListingId)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('negotiationListingId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PROPERTY\",\n  \"operationType\": \"SALE\",\n  \"title\": \"Casa no Cocó para negociar\",\n  \"description\": \"Anuncio usado pela pasta de propostas.\",\n  \"price\": 750000.00,\n  \"neighborhood\": \"Coco\",\n  \"city\": \"Fortaleza\",\n  \"state\": \"CE\",\n  \"latitude\": -3.7420,\n  \"longitude\": -38.4800,\n  \"property\": {\n    \"propertyType\": \"HOUSE\",\n    \"totalArea\": 180.00,\n    \"bedrooms\": 4,\n    \"bathrooms\": 3\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings"] }
+          }
+        },
+        {
+          "name": "Cliente propõe sobre o anúncio (201, salva proposalId)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('direção deduzida do token: iniciada pelo cliente', () =>",
+                  "  pm.expect(body.initiator).to.eql('CUSTOMER'));",
+                  "pm.test('nasce PENDING e sem busca de origem', () => {",
+                  "  pm.expect(body.status).to.eql('PENDING');",
+                  "  pm.expect(body.originSavedSearchId).to.be.null;",
+                  "});",
+                  "pm.test('enquanto pendente, o link de desfecho existe', () =>",
+                  "  pm.expect(body._links.status.href).to.be.a('string'));",
+                  "pm.collectionVariables.set('proposalId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"listingId\": {{negotiationListingId}},\n  \"amount\": 700000.00\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/proposals", "host": ["{{baseUrl}}"], "path": ["api", "v1", "proposals"] },
+            "description": "O corpo não diz quem propõe: quem chama não é o dono do anúncio, logo é o cliente."
+          }
+        },
+        {
+          "name": "Quem propôs tentando aceitar: negado (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type forbidden-operation', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/forbidden-operation'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"ACCEPTED\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/proposals/{{proposalId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "v1", "proposals", "{{proposalId}}", "status"] },
+            "description": "Aceitar é da contraparte. Sem essa separação, propor e aceitar seriam a mesma ação."
+          }
+        },
+        {
+          "name": "Terceiro tentando abrir o thread: negado (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type access-denied', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/access-denied'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/proposals/{{proposalId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "proposals", "{{proposalId}}"] },
+            "description": "Com o token de administrador de propósito: negociação não tem plateia."
+          }
+        },
+        {
+          "name": "Corretor aceita a proposta (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('aceita', () => pm.expect(body.status).to.eql('ACCEPTED'));",
+                  "pm.test('decidida, o link de desfecho some', () =>",
+                  "  pm.expect(body._links.status).to.be.undefined);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"ACCEPTED\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/proposals/{{proposalId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "v1", "proposals", "{{proposalId}}", "status"] }
+          }
+        }
+,
+        {
+          "name": "Segunda decisão sobre a mesma proposta (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('type invalid-proposal', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/invalid-proposal'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"REJECTED\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/proposals/{{proposalId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "v1", "proposals", "{{proposalId}}", "status"] },
+            "description": "Os três desfechos são definitivos: retomar é abrir uma proposta nova."
+          }
+        },
+        {
+          "name": "Cliente escreve no thread (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('a mensagem volta com id e autor', () => {",
+                  "  pm.expect(body.id).to.be.a('number');",
+                  "  pm.expect(body.author.id).to.be.a('number');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"content\": \"Combinado. Podemos assinar na proxima semana?\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/proposals/{{proposalId}}/messages", "host": ["{{baseUrl}}"], "path": ["api", "v1", "proposals", "{{proposalId}}", "messages"] },
+            "description": "O thread continua aberto depois do desfecho: combinar detalhes de uma proposta aceita é conversa legítima. Contraproposta seria uma mensagem sugerindo outro valor."
+          }
+        },
+        {
+          "name": "Minhas negociações (200, thread incluído)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const proposals = (pm.response.json()._embedded || {}).proposalResponseList || [];",
+                  "const id = pm.collectionVariables.get('proposalId');",
+                  "const target = proposals.find(p => String(p.id) === String(id));",
+                  "pm.test('a proposta aparece para o corretor', () => pm.expect(target).to.not.be.undefined);",
+                  "pm.test('com a mensagem no thread', () => pm.expect(target.messages.length).to.be.at.least(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{realtorToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/proposals?size=50", "host": ["{{baseUrl}}"], "path": ["api", "v1", "proposals"], "query": [{ "key": "size", "value": "50" }] },
+            "description": "Uma lista só, com os dois papéis: aqui o usuário aparece como corretor dono do anúncio."
+          }
+        },
+        {
+          "name": "Aposenta o anúncio da negociação (200, limpeza)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"COMPLETED\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{negotiationListingId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{negotiationListingId}}", "status"] },
+            "description": "COMPLETED, e não REMOVED: o negócio saiu. É sinalização do corretor, sem registro de transação."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Social",
+      "description": "Cluster D da Fase 2. Reputação, favoritos, acompanhar corretor e mural.\n\nA avaliação é gated por interação real: só avalia quem já negociou com aquele corretor. Favoritar, seguir e curtir são PUT/DELETE idempotentes -- repetir a chamada não duplica nem vira 409.",
+      "item": [
+        {
+          "name": "Cliente avalia o corretor com quem negociou (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('nota registrada', () => pm.expect(body.score).to.eql(5));",
+                  "pm.collectionVariables.set('reviewId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"score\": 5,\n  \"comment\": \"Atendimento impecavel.\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/realtors/{{realtorId}}/reviews", "host": ["{{baseUrl}}"], "path": ["api", "v1", "realtors", "{{realtorId}}", "reviews"] },
+            "description": "Depende da proposta criada na pasta Propostas: sem negociacao previa, a resposta seria 403 review-not-allowed."
+          }
+        },
+        {
+          "name": "Reputação lida sem token (200, com a média no cabeçalho)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('média de todas as avaliações no cabeçalho', () =>",
+                  "  pm.expect(pm.response.headers.get('X-Corretoria-Average-Score')).to.match(/^[0-9.]+$/));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/realtors/{{realtorId}}/reviews", "host": ["{{baseUrl}}"], "path": ["api", "v1", "realtors", "{{realtorId}}", "reviews"] },
+            "description": "Reputacao que so o dono enxerga nao ajuda ninguem a escolher com quem negociar."
+          }
+        },
+        {
+          "name": "Segunda avaliação do mesmo par: substitui, não acumula (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('mesma avaliação, nota nova', () => {",
+                  "  pm.expect(String(pm.response.json().id)).to.eql(String(pm.collectionVariables.get('reviewId')));",
+                  "  pm.expect(pm.response.json().score).to.eql(3);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"score\": 3,\n  \"comment\": \"Revisei minha opiniao.\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/realtors/{{realtorId}}/reviews", "host": ["{{baseUrl}}"], "path": ["api", "v1", "realtors", "{{realtorId}}", "reviews"] },
+            "description": "Uma avaliacao por par: o verbo e PUT justamente porque a operacao e idempotente."
+          }
+        },
+        {
+          "name": "Corretor tentando favoritar: negado (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type access-denied', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/access-denied'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{realtorToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}/favorite", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}", "favorite"] },
+            "description": "Favoritar e marcar interesse: nao faz sentido para quem oferta."
+          }
+        },
+        {
+          "name": "Cliente favorita e repete: idempotente (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('favoriteId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}/favorite", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}", "favorite"] }
+          }
+        },
+        {
+          "name": "Favorita de novo: mesmo vínculo (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('nao duplicou', () =>",
+                  "  pm.expect(String(pm.response.json().id)).to.eql(String(pm.collectionVariables.get('favoriteId'))));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}/favorite", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}", "favorite"] },
+            "description": "Um botao de alternar precisa disso: repetir a chamada apos falha de rede nao pode virar 409."
+          }
+        },
+        {
+          "name": "Meus favoritos (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('o anuncio favoritado esta na lista', () =>",
+                  "  pm.expect(pm.response.json().page.totalElements).to.be.at.least(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/favorites", "host": ["{{baseUrl}}"], "path": ["api", "v1", "favorites"] }
+          }
+        },
+        {
+          "name": "Desfavorita duas vezes: 204 nas duas (204)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('204 No Content', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}/favorite", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}", "favorite"] },
+            "description": "Desmarcar o que nao estava marcado tambem devolve 204 -- rode esta requisicao duas vezes para ver."
+          }
+        }
+,
+        {
+          "name": "Cliente passa a acompanhar o corretor (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('vinculo com o corretor', () =>",
+                  "  pm.expect(pm.response.json().realtor.id).to.be.a('number'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/realtors/{{realtorId}}/follow", "host": ["{{baseUrl}}"], "path": ["api", "v1", "realtors", "{{realtorId}}", "follow"] },
+            "description": "O corretor e notificado apenas quando o vinculo nasce: um cliente indeciso nao deve encher a caixa dele."
+          }
+        },
+        {
+          "name": "Corretores que acompanho (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('o corretor seguido esta na lista', () =>",
+                  "  pm.expect(pm.response.json().page.totalElements).to.be.at.least(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/follows", "host": ["{{baseUrl}}"], "path": ["api", "v1", "follows"] }
+          }
+        },
+        {
+          "name": "Corretor publica no próprio mural (201, salva postId)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('nasce sem curtidas', () => pm.expect(pm.response.json().likeCount).to.eql(0));",
+                  "pm.collectionVariables.set('postId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"content\": \"O mercado da Aldeota neste mes: procura alta por 2 quartos.\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/realtors/{{realtorId}}/posts", "host": ["{{baseUrl}}"], "path": ["api", "v1", "realtors", "{{realtorId}}", "posts"] }
+          }
+        },
+        {
+          "name": "Cliente tentando publicar no mural do corretor: negado (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('403 Forbidden', () => pm.response.to.have.status(403));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"content\": \"Falando em nome de outro\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/realtors/{{realtorId}}/posts", "host": ["{{baseUrl}}"], "path": ["api", "v1", "realtors", "{{realtorId}}", "posts"] },
+            "description": "Publicar no mural de alguem e falar em nome dele."
+          }
+        },
+        {
+          "name": "Mural lido sem token (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('a publicacao aparece', () =>",
+                  "  pm.expect(pm.response.json().page.totalElements).to.be.at.least(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/realtors/{{realtorId}}/posts", "host": ["{{baseUrl}}"], "path": ["api", "v1", "realtors", "{{realtorId}}", "posts"] },
+            "description": "O mural e vitrine de presenca: exigir token para le-lo esvaziaria o proposito."
+          }
+        }
+,
+        {
+          "name": "Cliente curte (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('uma curtida', () => pm.expect(pm.response.json().likeCount).to.eql(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/posts/{{postId}}/like", "host": ["{{baseUrl}}"], "path": ["api", "v1", "posts", "{{postId}}", "like"] }
+          }
+        },
+        {
+          "name": "Mesma pessoa curte de novo: contagem não sobe (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('continua uma curtida', () =>",
+                  "  pm.expect(pm.response.json().likeCount).to.eql(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/posts/{{postId}}/like", "host": ["{{baseUrl}}"], "path": ["api", "v1", "posts", "{{postId}}", "like"] },
+            "description": "E o que a interface promete: uma curtida por pessoa, nao um contador que sobe a cada clique. O UNIQUE garante o mesmo no banco."
+          }
+        },
+        {
+          "name": "O corretor também curte: mural é conversa aberta (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('duas curtidas, de pessoas diferentes', () =>",
+                  "  pm.expect(pm.response.json().likeCount).to.eql(2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{realtorToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/posts/{{postId}}/like", "host": ["{{baseUrl}}"], "path": ["api", "v1", "posts", "{{postId}}", "like"] },
+            "description": "Curtir e comentar sao de qualquer usuario autenticado, inclusive de outro corretor -- diferente de favoritar e seguir."
+          }
+        },
+        {
+          "name": "Cliente comenta (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('comentario com id e autor', () => {",
+                  "  pm.expect(pm.response.json().id).to.be.a('number');",
+                  "  pm.expect(pm.response.json().author.id).to.be.a('number');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"content\": \"Otima analise, obrigado!\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/posts/{{postId}}/comments", "host": ["{{baseUrl}}"], "path": ["api", "v1", "posts", "{{postId}}", "comments"] }
+          }
+        },
+        {
+          "name": "Anônimo tentando curtir (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "url": { "raw": "{{baseUrl}}/api/v1/posts/{{postId}}/like", "host": ["{{baseUrl}}"], "path": ["api", "v1", "posts", "{{postId}}", "like"] },
+            "description": "Ler o mural e livre; interagir com ele exige token."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Moderação",
+      "description": "Cluster E da Fase 2, e o contrapeso da publicação imediata: abrir denúncia é de qualquer usuário autenticado, ver a fila e decidir é exclusivo do administrador.\n\nA sequência denuncia um anúncio com o cliente, prova as três barreiras (dono, denúncia repetida, fila fechada) e decide a denúncia com o administrador.",
+      "item": [
+        {
+          "name": "Cliente denuncia um anúncio (201, salva reportId)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('nasce em aberto e sem decisor', () => {",
+                  "  pm.expect(body.status).to.eql('OPEN');",
+                  "  pm.expect(body.decidedBy == null).to.be.true;",
+                  "});",
+                  "pm.test('traz quantas denuncias o anuncio acumulou', () =>",
+                  "  pm.expect(body.reportCountForListing).to.be.at.least(1));",
+                  "pm.collectionVariables.set('reportId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"reason\": \"MISLEADING_INFO\",\n  \"detail\": \"As fotos nao correspondem ao imovel descrito.\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}/reports", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}", "reports"] },
+            "description": "O motivo e de lista fechada: e ele que permite priorizar a fila. O texto livre vai em detail, como complemento."
+          }
+        },
+        {
+          "name": "Segunda denúncia em aberto do mesmo usuário (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('type duplicate-resource', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/duplicate-resource'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"reason\": \"SUSPECTED_FRAUD\",\n  \"detail\": \"Enfileirando de novo\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}/reports", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}", "reports"] },
+            "description": "Depois de decidida, uma denuncia nova e legitima: o anuncio pode ter mudado e voltado a ter problema."
+          }
+        },
+        {
+          "name": "Corretor denunciando o próprio anúncio (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type forbidden-operation', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/forbidden-operation'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{realtorToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"reason\": \"OTHER\",\n  \"detail\": \"Denunciando o que e meu\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/listings/{{listingId}}/reports", "host": ["{{baseUrl}}"], "path": ["api", "v1", "listings", "{{listingId}}", "reports"] },
+            "description": "Para o que e dele, o corretor ja tem PATCH /listings/{id}/status."
+          }
+        },
+        {
+          "name": "Fila de moderação pelo cliente: negado (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type access-denied', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/access-denied'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/reports", "host": ["{{baseUrl}}"], "path": ["api", "v1", "reports"] },
+            "description": "Nem o denunciante acompanha a propria denuncia: a fila e ferramenta de trabalho do moderador."
+          }
+        },
+        {
+          "name": "Fila de moderação pelo administrador (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const reports = (pm.response.json()._embedded || {}).listingReportResponseList || [];",
+                  "const id = pm.collectionVariables.get('reportId');",
+                  "pm.test('a denuncia aberta esta na fila', () =>",
+                  "  pm.expect(reports.map(r => String(r.id))).to.include(String(id)));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/reports?size=50", "host": ["{{baseUrl}}"], "path": ["api", "v1", "reports"], "query": [{ "key": "size", "value": "50" }] },
+            "description": "Sem status, a fila devolve as OPEN, das mais antigas para as mais novas: quem esperou mais e atendido primeiro."
+          }
+        },
+        {
+          "name": "Administrador decide: acolhe a denúncia (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('acolhida, com quem decidiu', () => {",
+                  "  pm.expect(body.status).to.eql('REVIEWED');",
+                  "  pm.expect(body.decidedBy).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"REVIEWED\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/reports/{{reportId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "v1", "reports", "{{reportId}}", "status"] },
+            "description": "Quem decidiu vem da auditoria (last_updated_by), nao de uma coluna de revisor. Decidir nao mexe no anuncio: retira-lo do ar continua sendo acao explicita."
+          }
+        },
+        {
+          "name": "Segunda decisão sobre a mesma denúncia (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('type forbidden-operation', () =>",
+                  "  pm.expect(pm.response.json().type).to.include('/problems/forbidden-operation'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"DISMISSED\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/reports/{{reportId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "v1", "reports", "{{reportId}}", "status"] },
+            "description": "A denuncia decidida nao volta para a fila: um problema que reaparece e uma denuncia nova, com data nova."
           }
         }
       ]

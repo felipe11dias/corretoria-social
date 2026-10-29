@@ -69,6 +69,52 @@ public class GlobalExceptionHandler {
                 exception.getMessage(), request);
     }
 
+    /**
+     * Combinação de campos que não existe no domínio do anúncio.
+     *
+     * <p>Tem {@code type} próprio, e não o de validação: o cliente precisa distinguir "faltou
+     * um campo" de "essa combinação não existe" para saber o que corrigir.
+     */
+    @ExceptionHandler(InvalidListingException.class)
+    public ProblemDetail handleInvalidListing(
+            InvalidListingException exception, HttpServletRequest request) {
+
+        return build(HttpStatus.BAD_REQUEST, ProblemType.INVALID_LISTING,
+                exception.getMessage(), request);
+    }
+
+    /**
+     * Avaliação sem negociação prévia.
+     *
+     * <p>{@code 403} com type próprio: diferente de acesso negado, esta porta se abre sozinha
+     * assim que houver uma proposta entre as partes.
+     */
+    @ExceptionHandler(ReviewNotAllowedException.class)
+    public ProblemDetail handleReviewNotAllowed(
+            ReviewNotAllowedException exception, HttpServletRequest request) {
+
+        return build(HttpStatus.FORBIDDEN, ProblemType.REVIEW_NOT_ALLOWED,
+                exception.getMessage(), request);
+    }
+
+    /** Ver {@link #handleInvalidListing}: mesma distinção, aplicada à negociação. */
+    @ExceptionHandler(InvalidProposalException.class)
+    public ProblemDetail handleInvalidProposal(
+            InvalidProposalException exception, HttpServletRequest request) {
+
+        return build(HttpStatus.BAD_REQUEST, ProblemType.INVALID_PROPOSAL,
+                exception.getMessage(), request);
+    }
+
+    /** Ver {@link #handleInvalidListing}: mesma distinção, aplicada à busca salva. */
+    @ExceptionHandler(InvalidSavedSearchException.class)
+    public ProblemDetail handleInvalidSavedSearch(
+            InvalidSavedSearchException exception, HttpServletRequest request) {
+
+        return build(HttpStatus.BAD_REQUEST, ProblemType.INVALID_SAVED_SEARCH,
+                exception.getMessage(), request);
+    }
+
     @ExceptionHandler(InvalidPasswordException.class)
     public ProblemDetail handleInvalidPassword(
             InvalidPasswordException exception, HttpServletRequest request) {

@@ -89,13 +89,15 @@ class UserSecurityTest {
         }
 
         @Test
-        @DisplayName("isSelf - usuário anônimo - falso")
+        @DisplayName("isSelf - usuário anônimo - falso, sem consultar o banco")
         void shouldDenyAnonymous() {
+            // O catálogo de anúncios é público, então o token anônimo passa a chegar aqui em
+            // volume: reconhecê-lo antes da consulta evita uma ida ao banco por requisição.
             Authentication anonymous = new AnonymousAuthenticationToken(
                     "key", "anonymousUser", AuthorityUtils.createAuthorityList("ROLE_ANONYMOUS"));
-            given(userRepository.findByLogin("anonymousUser")).willReturn(Optional.empty());
 
             assertThat(userSecurity.isSelf(OWN_ID, anonymous)).isFalse();
+            then(userRepository).shouldHaveNoInteractions();
         }
     }
 }

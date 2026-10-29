@@ -1,6 +1,8 @@
 package com.corretoria.repository;
 
 import com.corretoria.entity.User;
+import com.corretoria.enums.RoleName;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -22,4 +24,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByLogin(String login);
 
     Page<User> findByNameContainingIgnoreCase(String name, Pageable pageable);
+
+    /**
+     * Usuários que têm um determinado papel.
+     *
+     * <p>Usado para avisar os moderadores de que há denúncia nova na fila: não existe caixa de
+     * entrada da plataforma, então o aviso vai para quem pode agir sobre ele.
+     */
+    List<User> findByRolesName(RoleName name);
 }
